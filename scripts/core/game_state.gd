@@ -139,7 +139,7 @@ func move_unit(unit: UnitData, to_sector_id: String) -> void:
 	if unit.sector_id != "":
 		var old_sector := board.get_sector(unit.sector_id)
 		if old_sector:
-			var idx := old_sector.units.find(unit)
+			var idx: int = old_sector.units.find(unit)
 			if idx >= 0:
 				old_sector.units.remove_at(idx)
 
@@ -154,18 +154,18 @@ func remove_unit(unit: UnitData) -> void:
 	if unit.sector_id != "":
 		var old_sector := board.get_sector(unit.sector_id)
 		if old_sector:
-			var idx := old_sector.units.find(unit)
+			var idx: int = old_sector.units.find(unit)
 			if idx >= 0:
 				old_sector.units.remove_at(idx)
 
 	# Retirer de la réserve si applicable
 	for player in players.values():
-		var idx := player.reserve.find(unit)
+		var idx: int = player.reserve.find(unit)
 		if idx >= 0:
 			player.reserve.remove_at(idx)
 
 	# Retirer de la liste globale
-	var global_idx := all_units.find(unit)
+	var global_idx: int = all_units.find(unit)
 	if global_idx >= 0:
 		all_units.remove_at(global_idx)
 

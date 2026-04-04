@@ -6,9 +6,12 @@ class_name BoardRenderer
 signal sector_clicked(sector_id: String)
 signal sector_hovered(sector_id: String)
 
-const CELL_SIZE := 64.0
+const CELL_SIZE := 55.0
 const CELL_PADDING := 2.0
-const BOARD_ORIGIN := Vector2(100, 50)
+# Le grille va de (0,0) à (7,7) pour les territoires, le centre logique est (3.75, 3.5)
+# Zone utile écran: X=[0, 1015], Y=[42, 670] → centre ~(507, 356)
+# BOARD_ORIGIN = centre_écran - centre_grille * CELL_SIZE
+const BOARD_ORIGIN := Vector2(507 - 3.75 * 55.0, 356 - 3.5 * 55.0)  # ~(300.75, 163.5)
 const CORNER_RADIUS := 6.0
 
 # Palette
@@ -73,7 +76,7 @@ func _calculate_sector_positions() -> void:
 		"HQ_R": Vector2(8, 7.5),
 	}
 	for hq_id in hq_data:
-		var pixel_pos := BOARD_ORIGIN + hq_data[hq_id] * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
+		var pixel_pos: Vector2 = BOARD_ORIGIN + Vector2(hq_data[hq_id]) * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
 		sector_positions[hq_id] = pixel_pos
 		sector_rects[hq_id] = Rect2(
 			pixel_pos - Vector2(CELL_SIZE / 2, CELL_SIZE / 2),
@@ -89,7 +92,7 @@ func _calculate_sector_positions() -> void:
 		"S11": Vector2(3.5, 7.5), "S7": Vector2(4.5, 7.5),
 	}
 	for sea_id in sea_grid:
-		var pixel_pos := BOARD_ORIGIN + sea_grid[sea_id] * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
+		var pixel_pos: Vector2 = BOARD_ORIGIN + Vector2(sea_grid[sea_id]) * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
 		sector_positions[sea_id] = pixel_pos
 		sector_rects[sea_id] = Rect2(
 			pixel_pos - Vector2(CELL_SIZE / 2, CELL_SIZE / 2),
@@ -102,7 +105,7 @@ func _calculate_sector_positions() -> void:
 		"IX": Vector2(4, 3.5),
 	}
 	for island_id in island_grid:
-		var pixel_pos := BOARD_ORIGIN + island_grid[island_id] * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
+		var pixel_pos: Vector2 = BOARD_ORIGIN + Vector2(island_grid[island_id]) * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
 		sector_positions[island_id] = pixel_pos
 		sector_rects[island_id] = Rect2(
 			pixel_pos - Vector2(CELL_SIZE / 2, CELL_SIZE / 2),
@@ -151,7 +154,7 @@ func _draw_adjacency_lines() -> void:
 		if pos_a == Vector2.ZERO:
 			continue
 		for neighbor_id in sector.adjacent_sectors:
-			var key := sector_id + ":" + neighbor_id if sector_id < neighbor_id else neighbor_id + ":" + sector_id
+			var key: String = (sector_id + ":" + neighbor_id) if sector_id < neighbor_id else (neighbor_id + ":" + sector_id)
 			if key in drawn:
 				continue
 			drawn[key] = true
@@ -284,7 +287,7 @@ func _draw_sector_label(rect: Rect2, label_text: String, color: Color, font_size
 
 # ===== INPUT =====
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var old_hovered := hovered_sector
 		hovered_sector = _get_sector_at(event.position)

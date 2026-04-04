@@ -244,13 +244,13 @@ func _try_advance_ground(orders: Array[Order], my_units: Array, moved: Array[Uni
 			continue
 
 		# Avancer d'un pas vers ce QG
-		var path := game_state.board.find_path(unit.sector_id, best_hq, unit.unit_type)
+		var path: Array[String] = game_state.board.find_path(unit.sector_id, best_hq, unit.unit_type)
 		if path.size() < 2:
 			continue
 
 		# Avancer du max de mouvement possible le long du chemin
-		var max_move := unit.get_max_move()
-		var target_idx := mini(max_move, path.size() - 1)
+		var max_move: int = unit.get_max_move()
+		var target_idx: int = mini(max_move, path.size() - 1)
 		var target_id: String = path[target_idx]
 
 		var order := Order.create_move(color, unit.unit_type, unit.sector_id, target_id)

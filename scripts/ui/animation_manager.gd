@@ -93,10 +93,15 @@ func play_phase_title(text: String) -> void:
 func play_all() -> void:
 	## Lance toutes les animations en file d'attente puis émet animation_finished.
 	if _animation_queue.is_empty():
-		animation_finished.emit()
+		# Différer l'émission pour que le await ait le temps de s'enregistrer
+		_emit_finished_deferred.call_deferred()
 		return
 	_is_playing = true
 	_play_next()
+
+func _emit_finished_deferred() -> void:
+	_is_playing = false
+	animation_finished.emit()
 
 func skip_all() -> void:
 	## Saute toutes les animations restantes.
@@ -146,15 +151,15 @@ func _animate_move(anim: Dictionary) -> void:
 		_play_next()
 		return
 
-	var from_pos := board_renderer.get_sector_position(anim["from"])
-	var to_pos := board_renderer.get_sector_position(anim["to"])
+	var from_pos: Vector2 = board_renderer.get_sector_position(anim["from"])
+	var to_pos: Vector2 = board_renderer.get_sector_position(anim["to"])
 	var color: Color = GameEnums.get_player_color(anim["owner"])
-	var abbr := GameEnums.get_unit_abbreviation(anim["unit_type"])
+	var abbr: String = GameEnums.get_unit_abbreviation(anim["unit_type"])
 
 	# Créer un sprite temporaire
-	var token := _create_unit_token(abbr, color, from_pos)
+	var token: Node2D = _create_unit_token(abbr, color, from_pos)
 
-	var duration := MOVE_DURATION / speed_multiplier
+	var duration: float = MOVE_DURATION / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
 	tween.tween_property(token, "position", to_pos, duration) \
@@ -170,19 +175,19 @@ func _animate_rebond(anim: Dictionary) -> void:
 		_play_next()
 		return
 
-	var from_pos := board_renderer.get_sector_position(anim["from"])
-	var to_pos := board_renderer.get_sector_position(anim["to"])
+	var from_pos: Vector2 = board_renderer.get_sector_position(anim["from"])
+	var to_pos: Vector2 = board_renderer.get_sector_position(anim["to"])
 	var color: Color = GameEnums.get_player_color(anim["owner"])
-	var abbr := GameEnums.get_unit_abbreviation(anim["unit_type"])
+	var abbr: String = GameEnums.get_unit_abbreviation(anim["unit_type"])
 
-	var token := _create_unit_token(abbr, color, from_pos)
+	var token: Node2D = _create_unit_token(abbr, color, from_pos)
 
 	# Aller vers la destination puis rebondir en arrière
-	var duration := MOVE_DURATION * 0.5 / speed_multiplier
+	var duration: float = MOVE_DURATION * 0.5 / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
 
-	var mid_pos := from_pos.lerp(to_pos, 0.3)
+	var mid_pos: Vector2 = from_pos.lerp(to_pos, 0.3)
 	tween.tween_property(token, "position", mid_pos, duration) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
 	tween.tween_property(token, "position", to_pos, duration) \
@@ -198,13 +203,13 @@ func _animate_combat(anim: Dictionary) -> void:
 		_play_next()
 		return
 
-	var pos := board_renderer.get_sector_position(anim["sector"])
+	var pos: Vector2 = board_renderer.get_sector_position(anim["sector"])
 	var winner_color: Color = GameEnums.get_player_color(anim["winner"])
 
 	# Flash lumineux sur le secteur
-	var flash := _create_flash(pos, winner_color)
+	var flash: Node2D = _create_flash(pos, winner_color)
 
-	var duration := COMBAT_FLASH_DURATION / speed_multiplier
+	var duration: float = COMBAT_FLASH_DURATION / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
 
@@ -223,13 +228,13 @@ func _animate_capture(anim: Dictionary) -> void:
 		_play_next()
 		return
 
-	var pos := board_renderer.get_sector_position(anim["sector"])
+	var pos: Vector2 = board_renderer.get_sector_position(anim["sector"])
 	var color: Color = GameEnums.get_player_color(anim["capturer"])
 
 	# Cercle qui se rétrécit (aspiration des pièces capturées)
-	var ring := _create_capture_ring(pos, color)
+	var ring: Node2D = _create_capture_ring(pos, color)
 
-	var duration := CAPTURE_DURATION / speed_multiplier
+	var duration: float = CAPTURE_DURATION / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
 
@@ -247,12 +252,12 @@ func _animate_explosion(anim: Dictionary) -> void:
 		_play_next()
 		return
 
-	var pos := board_renderer.get_sector_position(anim["sector"])
+	var pos: Vector2 = board_renderer.get_sector_position(anim["sector"])
 
 	# Cercle rouge-orange qui s'étend puis disparaît
-	var explosion := _create_explosion_effect(pos)
+	var explosion: Node2D = _create_explosion_effect(pos)
 
-	var duration := 0.8 / speed_multiplier
+	var duration: float = 0.8 / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
 
@@ -268,9 +273,9 @@ func _animate_explosion(anim: Dictionary) -> void:
 
 func _animate_flag_capture(anim: Dictionary) -> void:
 	# Grand texte qui apparaît au centre de l'écran
-	var capturer_name := _color_name(anim["capturer"])
-	var captured_name := _color_name(anim["captured"])
-	var text := "%s capture le drapeau de %s!" % [capturer_name, captured_name]
+	var capturer_name: String = _color_name(anim["capturer"])
+	var captured_name: String = _color_name(anim["captured"])
+	var text: String = "%s capture le drapeau de %s!" % [capturer_name, captured_name]
 	var color: Color = GameEnums.get_player_color(anim["capturer"])
 
 	var label := Label.new()

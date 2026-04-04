@@ -1,31 +1,15 @@
 extends Node2D
 class_name UnitRenderer
 
-## Affiche les unités sur le plateau avec des badges colorés.
-## Chaque joueur a un badge compact montrant ses unités par secteur.
+## Affiche les unités sur le plateau avec des icônes géométriques distinctes.
+## Chaque type d'unité a une forme unique, colorée selon le joueur.
 
 var board_renderer: BoardRenderer
 var game_state: GameState
 
-# Icônes par type d'unité (caractères Unicode)
-const ICONS := {
-	GameEnums.UnitType.FLAG: "F",
-	GameEnums.UnitType.POWER: "P",
-	GameEnums.UnitType.SOLDIER: "S",
-	GameEnums.UnitType.TANK: "T",
-	GameEnums.UnitType.FIGHTER: "C",
-	GameEnums.UnitType.DESTROYER: "D",
-	GameEnums.UnitType.REGIMENT: "R",
-	GameEnums.UnitType.HEAVY_TANK: "A",
-	GameEnums.UnitType.BOMBER: "B",
-	GameEnums.UnitType.CRUISER: "Cr",
-	GameEnums.UnitType.MEGA_MISSILE: "M",
-}
-
-const BADGE_HEIGHT := 16.0
-const BADGE_PADDING := 3.0
-const BADGE_FONT_SIZE := 10
-const POWER_FONT_SIZE := 8
+const ICON_SIZE := 8.0       # Rayon de base des icônes
+const ICON_SPACING := 18.0   # Espace entre icônes dans un secteur
+const MAX_PER_ROW := 3       # Max icônes par ligne dans un secteur
 
 func update_display() -> void:
 	queue_redraw()
@@ -39,95 +23,286 @@ func _draw() -> void:
 		if sector == null or sector.units.is_empty():
 			continue
 		var base_pos: Vector2 = board_renderer.sector_positions[sector_id]
-		_draw_units_at_sector(sector, base_pos)
+		_draw_units_at_sector(sector.units, base_pos)
 
-func _draw_units_at_sector(sector: Sector, base_pos: Vector2) -> void:
-	# Grouper par joueur
-	var by_player: Dictionary = {}
-	for unit in sector.units:
-		if unit.owner not in by_player:
-			by_player[unit.owner] = []
-		by_player[unit.owner].append(unit)
+func _draw_units_at_sector(units: Array, base_pos: Vector2) -> void:
+	# Disposer les icônes en grille dans le secteur
+	var count := units.size()
+	if count == 0:
+		return
 
-	var player_count := by_player.size()
-	var badge_idx := 0
+	# Calculer la disposition
+	var cols: int = mini(count, MAX_PER_ROW)
+	var rows: int = ceili(float(count) / cols)
+	var start_x: float = -(cols - 1) * ICON_SPACING * 0.5
+	var start_y: float = -(rows - 1) * ICON_SPACING * 0.5
 
-	for player_color in by_player:
-		var units: Array = by_player[player_color]
-		var color: Color = GameEnums.get_player_color(player_color)
+	for i in range(count):
+		var unit: UnitData = units[i]
+		var col: int = i % cols
+		var row: int = i / cols
+		var offset := Vector2(start_x + col * ICON_SPACING, start_y + row * ICON_SPACING)
+		var pos := base_pos + offset
+		var color: Color = GameEnums.get_player_color(unit.owner)
 
-		# Construire le texte du badge
-		var badge_text := _build_badge_text(units)
-		var total_power := _calc_total_power(units)
+		_draw_unit_icon(pos, unit.unit_type, color, unit.owner)
 
-		# Position du badge (empilé verticalement si plusieurs joueurs)
-		var y_offset := (badge_idx - player_count / 2.0 + 0.5) * (BADGE_HEIGHT + 2)
-		var badge_pos := base_pos + Vector2(0, y_offset)
+func _draw_unit_icon(pos: Vector2, unit_type: GameEnums.UnitType, color: Color, owner: GameEnums.PlayerColor) -> void:
+	# Ombre
+	var shadow_offset := Vector2(1, 1)
 
-		_draw_badge(badge_pos, badge_text, total_power, color)
-		badge_idx += 1
+	match unit_type:
+		GameEnums.UnitType.SOLDIER:
+			_draw_soldier(pos, color, shadow_offset, false)
+		GameEnums.UnitType.REGIMENT:
+			_draw_soldier(pos, color, shadow_offset, true)
+		GameEnums.UnitType.TANK:
+			_draw_tank(pos, color, shadow_offset, false)
+		GameEnums.UnitType.HEAVY_TANK:
+			_draw_tank(pos, color, shadow_offset, true)
+		GameEnums.UnitType.FIGHTER:
+			_draw_plane(pos, color, shadow_offset, false)
+		GameEnums.UnitType.BOMBER:
+			_draw_plane(pos, color, shadow_offset, true)
+		GameEnums.UnitType.DESTROYER:
+			_draw_ship(pos, color, shadow_offset, false)
+		GameEnums.UnitType.CRUISER:
+			_draw_ship(pos, color, shadow_offset, true)
+		GameEnums.UnitType.FLAG:
+			_draw_flag(pos, color, shadow_offset)
+		GameEnums.UnitType.POWER:
+			_draw_power(pos, color, shadow_offset)
+		GameEnums.UnitType.MEGA_MISSILE:
+			_draw_missile(pos, color, shadow_offset)
 
-func _build_badge_text(units: Array) -> String:
-	var by_type: Dictionary = {}
-	for unit in units:
-		var icon: String = ICONS.get(unit.unit_type, "?")
-		if icon not in by_type:
-			by_type[icon] = 0
-		by_type[icon] += 1
+# ===== SOLDAT / RÉGIMENT =====
+# Cercle (tête) + corps triangulaire
 
-	var parts := []
-	for icon in by_type:
-		var count: int = by_type[icon]
-		if count > 1:
-			parts.append("%d%s" % [count, icon])
-		else:
-			parts.append(icon)
-
-	return " ".join(parts)
-
-func _calc_total_power(units: Array) -> int:
-	var total := 0
-	for unit in units:
-		total += unit.get_power()
-	return total
-
-func _draw_badge(pos: Vector2, text: String, total_power: int, color: Color) -> void:
-	var font := ThemeDB.fallback_font
-	var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, BADGE_FONT_SIZE)
-
-	# Ajouter l'indicateur de puissance
-	var power_text := ""
-	if total_power > 0:
-		power_text = " %d" % total_power
-	var power_size := font.get_string_size(power_text, HORIZONTAL_ALIGNMENT_LEFT, -1, POWER_FONT_SIZE)
-
-	var badge_width := text_size.x + power_size.x + BADGE_PADDING * 2 + 2
-	var badge_height := BADGE_HEIGHT
-
-	var badge_rect := Rect2(
-		pos - Vector2(badge_width / 2, badge_height / 2),
-		Vector2(badge_width, badge_height))
+func _draw_soldier(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+	var dark := color.darkened(0.3)
 
 	# Ombre
-	var shadow_rect := Rect2(badge_rect.position + Vector2(1, 1), badge_rect.size)
-	draw_rect(shadow_rect, Color(0, 0, 0, 0.4))
+	draw_circle(pos + shadow + Vector2(0, -s * 0.4), s * 0.35, Color(0, 0, 0, 0.3))
 
-	# Fond du badge
-	draw_rect(badge_rect, color.darkened(0.35))
+	# Corps (triangle)
+	var body := PackedVector2Array([
+		pos + Vector2(-s * 0.5, s * 0.5),
+		pos + Vector2(s * 0.5, s * 0.5),
+		pos + Vector2(0, -s * 0.1),
+	])
+	draw_colored_polygon(body, dark)
 
-	# Barre de couleur à gauche
-	var stripe := Rect2(badge_rect.position, Vector2(3, badge_height))
-	draw_rect(stripe, color)
+	# Tête (cercle)
+	draw_circle(pos + Vector2(0, -s * 0.4), s * 0.35, color)
 
-	# Texte des unités
-	var text_pos := Vector2(
-		badge_rect.position.x + BADGE_PADDING + 3,
-		badge_rect.position.y + badge_height * 0.72)
-	draw_string(font, text_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, BADGE_FONT_SIZE, Color.WHITE)
+	# Contour tête
+	draw_arc(pos + Vector2(0, -s * 0.4), s * 0.35, 0, TAU, 16, color.lightened(0.3), 1.0)
 
-	# Texte de puissance (plus petit, en jaune)
-	if power_text != "":
-		var power_pos := Vector2(
-			text_pos.x + text_size.x + 2,
-			badge_rect.position.y + badge_height * 0.68)
-		draw_string(font, power_pos, power_text, HORIZONTAL_ALIGNMENT_LEFT, -1, POWER_FONT_SIZE, Color(1.0, 0.9, 0.4, 0.8))
+	if is_big:
+		# Double barre pour régiment
+		draw_line(pos + Vector2(-s * 0.6, s * 0.6), pos + Vector2(s * 0.6, s * 0.6),
+			color.lightened(0.4), 2.0)
+		draw_line(pos + Vector2(-s * 0.5, s * 0.75), pos + Vector2(s * 0.5, s * 0.75),
+			color.lightened(0.4), 1.5)
+
+# ===== TANK / CHAR D'ASSAUT =====
+# Rectangle (châssis) + ligne (canon)
+
+func _draw_tank(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+	var dark := color.darkened(0.3)
+
+	# Ombre
+	draw_rect(Rect2(pos + shadow - Vector2(s * 0.6, s * 0.3), Vector2(s * 1.2, s * 0.7)),
+		Color(0, 0, 0, 0.3))
+
+	# Chenilles (rectangle foncé)
+	draw_rect(Rect2(pos - Vector2(s * 0.7, s * 0.35), Vector2(s * 1.4, s * 0.8)), dark)
+
+	# Châssis (rectangle principal)
+	draw_rect(Rect2(pos - Vector2(s * 0.55, s * 0.25), Vector2(s * 1.1, s * 0.55)), color)
+
+	# Tourelle (petit carré)
+	draw_rect(Rect2(pos - Vector2(s * 0.25, s * 0.2), Vector2(s * 0.5, s * 0.35)),
+		color.lightened(0.15))
+
+	# Canon
+	var canon_len: float = s * (1.0 if is_big else 0.7)
+	draw_line(pos + Vector2(s * 0.1, -s * 0.05),
+		pos + Vector2(s * 0.1 + canon_len, -s * 0.05),
+		dark, 2.5 if is_big else 2.0)
+
+	if is_big:
+		# Étoile sur la tourelle pour char d'assaut
+		draw_circle(pos, s * 0.12, color.lightened(0.4))
+
+# ===== CHASSEUR / BOMBARDIER =====
+# Triangle pointant vers le haut (forme d'avion)
+
+func _draw_plane(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+	var dark := color.darkened(0.3)
+
+	# Ombre
+	var shadow_shape := PackedVector2Array([
+		pos + shadow + Vector2(0, -s * 0.7),
+		pos + shadow + Vector2(-s * 0.6, s * 0.5),
+		pos + shadow + Vector2(s * 0.6, s * 0.5),
+	])
+	draw_colored_polygon(shadow_shape, Color(0, 0, 0, 0.3))
+
+	# Fuselage (triangle principal - nez vers le haut)
+	var fuselage := PackedVector2Array([
+		pos + Vector2(0, -s * 0.7),    # Nez
+		pos + Vector2(-s * 0.2, s * 0.4),
+		pos + Vector2(s * 0.2, s * 0.4),
+	])
+	draw_colored_polygon(fuselage, color)
+
+	# Ailes
+	var left_wing := PackedVector2Array([
+		pos + Vector2(-s * 0.15, 0),
+		pos + Vector2(-s * 0.7, s * 0.3),
+		pos + Vector2(-s * 0.1, s * 0.25),
+	])
+	var right_wing := PackedVector2Array([
+		pos + Vector2(s * 0.15, 0),
+		pos + Vector2(s * 0.7, s * 0.3),
+		pos + Vector2(s * 0.1, s * 0.25),
+	])
+	draw_colored_polygon(left_wing, dark)
+	draw_colored_polygon(right_wing, dark)
+
+	# Queue
+	var tail := PackedVector2Array([
+		pos + Vector2(-s * 0.3, s * 0.4),
+		pos + Vector2(s * 0.3, s * 0.4),
+		pos + Vector2(0, s * 0.6),
+	])
+	draw_colored_polygon(tail, dark)
+
+	if is_big:
+		# Bombes sous les ailes pour bombardier
+		draw_circle(pos + Vector2(-s * 0.35, s * 0.2), s * 0.08, Color.BLACK)
+		draw_circle(pos + Vector2(s * 0.35, s * 0.2), s * 0.08, Color.BLACK)
+		# Bande blanche
+		draw_line(pos + Vector2(-s * 0.15, -s * 0.1), pos + Vector2(s * 0.15, -s * 0.1),
+			color.lightened(0.5), 1.5)
+
+# ===== DESTROYER / CROISEUR =====
+# Forme de bateau (losange allongé horizontalement)
+
+func _draw_ship(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+	var dark := color.darkened(0.3)
+
+	# Ombre
+	var shadow_hull := PackedVector2Array([
+		pos + shadow + Vector2(-s * 0.8, 0),
+		pos + shadow + Vector2(-s * 0.3, -s * 0.35),
+		pos + shadow + Vector2(s * 0.5, -s * 0.35),
+		pos + shadow + Vector2(s * 0.8, 0),
+		pos + shadow + Vector2(s * 0.5, s * 0.35),
+		pos + shadow + Vector2(-s * 0.3, s * 0.35),
+	])
+	draw_colored_polygon(shadow_hull, Color(0, 0, 0, 0.3))
+
+	# Coque (hexagone allongé, proue à droite)
+	var hull := PackedVector2Array([
+		pos + Vector2(-s * 0.8, 0),        # Poupe
+		pos + Vector2(-s * 0.3, -s * 0.35),
+		pos + Vector2(s * 0.5, -s * 0.35),
+		pos + Vector2(s * 0.8, 0),         # Proue
+		pos + Vector2(s * 0.5, s * 0.35),
+		pos + Vector2(-s * 0.3, s * 0.35),
+	])
+	draw_colored_polygon(hull, color)
+
+	# Pont (ligne centrale)
+	draw_line(pos + Vector2(-s * 0.5, 0), pos + Vector2(s * 0.5, 0), dark, 1.5)
+
+	# Cheminée / mât
+	draw_line(pos + Vector2(0, 0), pos + Vector2(0, -s * 0.5), dark, 2.0)
+
+	if is_big:
+		# Croiseur: 2 cheminées + pont plus large
+		draw_line(pos + Vector2(-s * 0.25, 0), pos + Vector2(-s * 0.25, -s * 0.4), dark, 1.5)
+		draw_line(pos + Vector2(s * 0.25, 0), pos + Vector2(s * 0.25, -s * 0.4), dark, 1.5)
+		# Ligne de flottaison
+		draw_line(pos + Vector2(-s * 0.6, s * 0.15), pos + Vector2(s * 0.6, s * 0.15),
+			color.lightened(0.3), 1.0)
+
+# ===== DRAPEAU =====
+
+func _draw_flag(pos: Vector2, color: Color, shadow: Vector2) -> void:
+	var s: float = ICON_SIZE
+
+	# Mât
+	draw_line(pos + shadow + Vector2(0, s * 0.6), pos + shadow + Vector2(0, -s * 0.7),
+		Color(0, 0, 0, 0.3), 2.0)
+	draw_line(pos + Vector2(0, s * 0.6), pos + Vector2(0, -s * 0.7),
+		Color(0.4, 0.3, 0.2), 2.0)
+
+	# Drapeau (rectangle ondulant)
+	var flag := PackedVector2Array([
+		pos + Vector2(0, -s * 0.7),
+		pos + Vector2(s * 0.7, -s * 0.5),
+		pos + Vector2(s * 0.6, -s * 0.2),
+		pos + Vector2(0, -s * 0.3),
+	])
+	draw_colored_polygon(flag, color)
+	# Bordure du drapeau
+	draw_polyline(flag, color.lightened(0.3), 1.0)
+
+# ===== POWER (étoile) =====
+
+func _draw_power(pos: Vector2, color: Color, shadow: Vector2) -> void:
+	var s: float = ICON_SIZE * 0.7
+	_draw_star(pos + shadow, s, Color(0, 0, 0, 0.3))
+	_draw_star(pos, s, Color(1.0, 0.85, 0.2))  # Toujours doré
+
+func _draw_star(center: Vector2, radius: float, color: Color) -> void:
+	var points := PackedVector2Array()
+	for i in range(10):
+		var angle: float = -PI / 2 + i * TAU / 10
+		var r: float = radius if i % 2 == 0 else radius * 0.45
+		points.append(center + Vector2(cos(angle), sin(angle)) * r)
+	draw_colored_polygon(points, color)
+
+# ===== MÉGA-MISSILE =====
+
+func _draw_missile(pos: Vector2, color: Color, shadow: Vector2) -> void:
+	var s: float = ICON_SIZE * 1.2
+
+	# Ombre
+	draw_circle(pos + shadow, s * 0.3, Color(0, 0, 0, 0.3))
+
+	# Corps du missile (rectangle vertical)
+	var body := Rect2(pos - Vector2(s * 0.15, s * 0.6), Vector2(s * 0.3, s * 0.9))
+	draw_rect(body, color)
+
+	# Ogive (triangle)
+	var tip := PackedVector2Array([
+		pos + Vector2(0, -s * 0.8),
+		pos + Vector2(-s * 0.15, -s * 0.6),
+		pos + Vector2(s * 0.15, -s * 0.6),
+	])
+	draw_colored_polygon(tip, color.lightened(0.2))
+
+	# Ailerons
+	var fin_l := PackedVector2Array([
+		pos + Vector2(-s * 0.15, s * 0.2),
+		pos + Vector2(-s * 0.4, s * 0.4),
+		pos + Vector2(-s * 0.15, s * 0.3),
+	])
+	var fin_r := PackedVector2Array([
+		pos + Vector2(s * 0.15, s * 0.2),
+		pos + Vector2(s * 0.4, s * 0.4),
+		pos + Vector2(s * 0.15, s * 0.3),
+	])
+	draw_colored_polygon(fin_l, color.darkened(0.2))
+	draw_colored_polygon(fin_r, color.darkened(0.2))
+
+	# Symbole radioactif au centre
+	draw_circle(pos, s * 0.1, Color(1.0, 0.9, 0.0))

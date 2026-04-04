@@ -63,9 +63,12 @@ func _create_hqs() -> void:
 		["HQ_R", GameEnums.PlayerColor.RED, Vector2(9, 7)],
 	]
 	for data in hq_data:
-		var sector := Sector.new(data[0], GameEnums.SectorType.HQ, data[1], data[2], data[0])
-		sectors[data[0]] = sector
-		_grid_positions[data[0]] = data[2]
+		var id: String = data[0]
+		var color: GameEnums.PlayerColor = data[1] as GameEnums.PlayerColor
+		var pos: Vector2 = data[2]
+		var sector = Sector.new(id, GameEnums.SectorType.HQ, color, pos, id)
+		sectors[id] = sector
+		_grid_positions[id] = pos
 
 func _create_islands() -> void:
 	var island_data := [
@@ -76,9 +79,11 @@ func _create_islands() -> void:
 		["IX", Vector2(4.5, 3.5)],  # Île Centre
 	]
 	for data in island_data:
-		var sector := Sector.new(data[0], GameEnums.SectorType.ISLAND, GameEnums.PlayerColor.NONE, data[1], data[0])
-		sectors[data[0]] = sector
-		_grid_positions[data[0]] = data[1]
+		var id: String = data[0]
+		var pos: Vector2 = data[1]
+		var sector = Sector.new(id, GameEnums.SectorType.ISLAND, GameEnums.PlayerColor.NONE, pos, id)
+		sectors[id] = sector
+		_grid_positions[id] = pos
 
 func _create_sea_sectors() -> void:
 	var sea_data := [
@@ -103,9 +108,11 @@ func _create_sea_sectors() -> void:
 		["S8", Vector2(4.5, 5)],     # Jonction vers centre
 	]
 	for data in sea_data:
-		var sector := Sector.new(data[0], GameEnums.SectorType.SEA, GameEnums.PlayerColor.NONE, data[1], data[0])
-		sectors[data[0]] = sector
-		_grid_positions[data[0]] = data[1]
+		var id: String = data[0]
+		var pos: Vector2 = data[1]
+		var sector = Sector.new(id, GameEnums.SectorType.SEA, GameEnums.PlayerColor.NONE, pos, id)
+		sectors[id] = sector
+		_grid_positions[id] = pos
 
 # ===== CREATION DES ADJACENCES =====
 
@@ -135,10 +142,10 @@ func _create_territory_internal_adjacencies(prefix: String) -> void:
 		7: [3, 4, 5, 6, 8],
 		8: [4, 5, 7],
 	}
-	for sector_num in adj_map:
-		var id := "%s%d" % [prefix, sector_num]
-		for neighbor_num in adj_map[sector_num]:
-			var neighbor_id := "%s%d" % [prefix, neighbor_num]
+	for sector_num: int in adj_map:
+		var id: String = "%s%d" % [prefix, sector_num]
+		for neighbor_num: int in adj_map[sector_num]:
+			var neighbor_id: String = "%s%d" % [prefix, neighbor_num]
 			_add_adjacency(id, neighbor_id)
 
 func _create_hq_adjacencies() -> void:

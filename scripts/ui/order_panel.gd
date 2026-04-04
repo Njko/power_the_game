@@ -195,7 +195,7 @@ func _try_select_unit(sector_id: String) -> void:
 	_selected_from_sector = sector_id
 
 	# Afficher les destinations possibles
-	var max_move := _selected_unit.get_max_move()
+	var max_move: int = _selected_unit.get_max_move()
 	var reachable := game_state.board.get_reachable_sectors(sector_id, _selected_unit.unit_type, max_move)
 	var typed: Array[String] = []
 	for s in reachable:
@@ -230,7 +230,7 @@ func _try_set_destination(sector_id: String) -> void:
 		return
 
 	# Vérifier la distance
-	var max_move := _selected_unit.get_max_move()
+	var max_move: int = _selected_unit.get_max_move()
 	var distance := game_state.board.get_distance(_selected_from_sector, sector_id, _selected_unit.unit_type)
 	if distance < 0 or distance > max_move:
 		_instruction_label.text = "Trop loin! (distance: %d, max: %d)" % [distance, max_move]

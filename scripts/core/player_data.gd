@@ -16,7 +16,7 @@ func add_to_reserve(unit: UnitData) -> void:
 	reserve.append(unit)
 
 func remove_from_reserve(unit: UnitData) -> void:
-	var idx := reserve.find(unit)
+	var idx: int = reserve.find(unit)
 	if idx >= 0:
 		reserve.remove_at(idx)
 		unit.in_reserve = false

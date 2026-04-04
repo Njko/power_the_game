@@ -185,8 +185,8 @@ func _on_game_over(winner: GameEnums.PlayerColor) -> void:
 	_log_header("VICTOIRE DE %s" % _color_name(winner))
 	if resolution_log and game_manager.game_state:
 		for color in game_manager.game_state.get_active_players():
-			var total := game_manager.game_state.calculate_player_total_power(color)
-			var flags := game_manager.game_state.get_player(color).flags_captured.size()
+			var total: int = game_manager.game_state.calculate_player_total_power(color)
+			var flags: int = game_manager.game_state.get_player(color).flags_captured.size()
 			resolution_log.append_text("  %s: puissance %d, %d drapeau(x)\n" % [
 				_color_name(color), total, flags])
 
@@ -267,8 +267,8 @@ func _process(_delta: float) -> void:
 	# Mettre à jour le timer global
 	if game_manager.game_state.current_phase != GameEnums.GamePhase.SETUP \
 			and game_manager.game_state.current_phase != GameEnums.GamePhase.GAME_OVER:
-		var elapsed := game_manager.game_timer
-		var remaining := game_manager.game_state.game_duration_limit - elapsed
+		var elapsed: float = game_manager.game_timer
+		var remaining: float = game_manager.game_state.game_duration_limit - elapsed
 		if remaining < 0:
 			remaining = 0
 		var hours := int(remaining) / 3600

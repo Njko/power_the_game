@@ -119,7 +119,7 @@ func _start_planning_phase() -> void:
 
 	var active := game_state.get_active_players()
 	_planning_queue.clear()
-	var start := game_state.arbiter_index % active.size()
+	var start: int = game_state.arbiter_index % active.size()
 	for i in range(active.size()):
 		_planning_queue.append(active[(start + i) % active.size()])
 
@@ -212,11 +212,11 @@ func _phase_execution() -> void:
 			unit.set_meta("origin_sector", unit.sector_id)
 
 	var active := game_state.get_active_players()
-	var start_idx := game_state.arbiter_index % active.size()
+	var start_idx: int = game_state.arbiter_index % active.size()
 
 	for i in range(active.size()):
-		var player_idx := (start_idx + i) % active.size()
-		var player_color := active[player_idx]
+		var player_idx: int = (start_idx + i) % active.size()
+		var player_color: GameEnums.PlayerColor = active[player_idx]
 		var player := game_state.get_player(player_color)
 		resolution_log.emit("--- Ordres de %s ---" % _color_name(player_color))
 		_execute_player_orders(player)
@@ -352,7 +352,7 @@ func _convert_smallest_to_power(player: PlayerData) -> void:
 
 	for unit in game_state.all_units:
 		if unit.owner == player.color and unit.unit_type != GameEnums.UnitType.FLAG:
-			var val := unit.get_power()
+			var val: int = unit.get_power()
 			if val > 0 and val < smallest_value:
 				smallest = unit
 				smallest_value = val
@@ -579,7 +579,7 @@ func _capture_flag(capturer: GameEnums.PlayerColor, captured: GameEnums.PlayerCo
 		if not unit.in_reserve:
 			var sector := game_state.board.get_sector(unit.sector_id)
 			if sector:
-				var idx := sector.units.find(unit)
+				var idx: int = sector.units.find(unit)
 				if idx >= 0:
 					sector.units.remove_at(idx)
 		capturer_player.add_to_reserve(unit)
@@ -596,7 +596,7 @@ func _capture_flag(capturer: GameEnums.PlayerColor, captured: GameEnums.PlayerCo
 func _check_game_over() -> bool:
 	var active := game_state.get_active_players()
 	if active.size() <= 1:
-		var winner := active[0] if active.size() == 1 else GameEnums.PlayerColor.NONE
+		var winner: GameEnums.PlayerColor = active[0] if active.size() == 1 else GameEnums.PlayerColor.NONE
 		game_state.current_phase = GameEnums.GamePhase.GAME_OVER
 		game_over.emit(winner)
 		return true
@@ -606,7 +606,7 @@ func _end_game_by_timeout() -> void:
 	var best_color: GameEnums.PlayerColor = GameEnums.PlayerColor.NONE
 	var best_power := -1
 	for color in game_state.get_active_players():
-		var total := game_state.calculate_player_total_power(color)
+		var total: int = game_state.calculate_player_total_power(color)
 		if total > best_power:
 			best_power = total
 			best_color = color

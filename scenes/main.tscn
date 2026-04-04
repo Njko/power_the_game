@@ -1,0 +1,93 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/board/board_renderer.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/units/unit_renderer.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/core/game_manager.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/ui/order_panel.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/ui/animation_manager.gd" id="6"]
+
+[node name="Main" type="Node"]
+script = ExtResource("1")
+
+[node name="GameBoard" type="Node2D" parent="."]
+
+[node name="BoardRenderer" type="Node2D" parent="GameBoard"]
+script = ExtResource("2")
+
+[node name="UnitRenderer" type="Node2D" parent="GameBoard"]
+script = ExtResource("3")
+
+[node name="GameManager" type="Node" parent="."]
+script = ExtResource("4")
+
+[node name="AnimationManager" type="Node2D" parent="GameBoard"]
+z_index = 100
+script = ExtResource("6")
+
+[node name="GameUI" type="CanvasLayer" parent="."]
+
+[node name="TopBar" type="PanelContainer" parent="GameUI"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 40.0
+grow_horizontal = 2
+
+[node name="HBox" type="HBoxContainer" parent="GameUI/TopBar"]
+layout_mode = 2
+
+[node name="RoundLabel" type="Label" parent="GameUI/TopBar/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Manche 0"
+
+[node name="PhaseLabel" type="Label" parent="GameUI/TopBar/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "POWER"
+horizontal_alignment = 1
+
+[node name="GameTimerLabel" type="Label" parent="GameUI/TopBar/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "2:00:00"
+horizontal_alignment = 2
+
+[node name="BottomBar" type="PanelContainer" parent="GameUI"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -60.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="VBox" type="VBoxContainer" parent="GameUI/BottomBar"]
+layout_mode = 2
+
+[node name="InfoLabel" type="Label" parent="GameUI/BottomBar/VBox"]
+layout_mode = 2
+text = "Bienvenue dans Power!"
+
+[node name="SectorInfo" type="Label" parent="GameUI/BottomBar/VBox"]
+layout_mode = 2
+text = "Cliquez sur un secteur pour voir les détails."
+
+[node name="ResolutionLog" type="RichTextLabel" parent="GameUI/BottomBar/VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 0)
+visible = false
+bbcode_enabled = true
+scroll_following = true
+
+[node name="OrderPanel" type="PanelContainer" parent="GameUI"]
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -260.0
+offset_top = 45.0
+offset_right = -5.0
+offset_bottom = 550.0
+grow_horizontal = 0
+visible = false
+script = ExtResource("5")

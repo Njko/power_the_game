@@ -58,7 +58,7 @@ anchors_preset = 12
 anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -60.0
+offset_top = -55.0
 grow_horizontal = 2
 grow_vertical = 0
 
@@ -73,12 +73,35 @@ text = "Bienvenue dans Power!"
 layout_mode = 2
 text = "Cliquez sur un secteur pour voir les détails."
 
-[node name="ResolutionLog" type="RichTextLabel" parent="GameUI/BottomBar/VBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 0)
+[node name="ResolutionPanel" type="PanelContainer" parent="GameUI"]
+anchors_preset = 3
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = 5.0
+offset_top = -280.0
+offset_right = -5.0
+offset_bottom = -60.0
+grow_horizontal = 2
+grow_vertical = 0
 visible = false
+
+[node name="VBox" type="VBoxContainer" parent="GameUI/ResolutionPanel"]
+layout_mode = 2
+
+[node name="LogTitle" type="Label" parent="GameUI/ResolutionPanel/VBox"]
+layout_mode = 2
+text = "Résolution"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 14
+
+[node name="ResolutionLog" type="RichTextLabel" parent="GameUI/ResolutionPanel/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
 bbcode_enabled = true
 scroll_following = true
+theme_override_font_sizes/normal_font_size = 12
 
 [node name="OrderPanel" type="PanelContainer" parent="GameUI"]
 anchors_preset = 1

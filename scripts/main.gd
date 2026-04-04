@@ -15,6 +15,8 @@ extends Node
 @onready var round_label: Label = $GameUI/TopBar/HBox/RoundLabel
 @onready var info_label: Label = $GameUI/BottomBar/VBox/InfoLabel
 @onready var sector_info: Label = $GameUI/BottomBar/VBox/SectorInfo
+@onready var resolution_panel: PanelContainer = $GameUI/ResolutionPanel
+@onready var resolution_log: RichTextLabel = $GameUI/ResolutionPanel/VBox/ResolutionLog
 
 var _switch_screen: PlayerSwitchScreen
 var _game_started := false
@@ -117,17 +119,25 @@ func _on_phase_changed(phase: GameEnums.GamePhase) -> void:
 	match phase:
 		GameEnums.GamePhase.PLANNING:
 			phase_label.text = "Préparation des ordres"
+			resolution_panel.visible = false
 		GameEnums.GamePhase.EXECUTION:
 			phase_label.text = "Exécution des ordres"
 			order_panel.deactivate()
+			# Ouvrir le log de résolution et le vider
+			resolution_log.clear()
+			resolution_panel.visible = true
+			_log_header("Exécution des ordres - Manche %d" % game_manager.game_state.current_round)
 		GameEnums.GamePhase.CONFLICT:
 			phase_label.text = "Résolution des conflits"
+			_log_header("Résolution des conflits")
 		GameEnums.GamePhase.COLLECT_POWER:
 			phase_label.text = "Collecte des Power"
+			_log_header("Collecte des Power")
 		GameEnums.GamePhase.CAPTURE_FLAGS:
 			phase_label.text = "Capture des drapeaux"
 		GameEnums.GamePhase.GAME_OVER:
 			phase_label.text = "FIN DE PARTIE"
+			_log_header("FIN DE PARTIE")
 
 func _on_round_started(round_number: int) -> void:
 	round_label.text = "Manche %d" % round_number
@@ -163,14 +173,93 @@ func _on_combat_resolved(sector_id: String, winner: GameEnums.PlayerColor) -> vo
 	info_label.text = "Combat en %s: victoire %s!" % [sector_id, _color_name(winner)]
 
 func _on_flag_captured(capturer: GameEnums.PlayerColor, captured: GameEnums.PlayerColor) -> void:
-	info_label.text = "%s capture le drapeau de %s!" % [_color_name(capturer), _color_name(captured)]
+	var msg := "%s capture le drapeau de %s!" % [_color_name(capturer), _color_name(captured)]
+	info_label.text = msg
 
 func _on_game_over(winner: GameEnums.PlayerColor) -> void:
-	info_label.text = "VICTOIRE DE %s!" % _color_name(winner)
+	var msg := "VICTOIRE DE %s!" % _color_name(winner)
+	info_label.text = msg
 	phase_label.text = "FIN DE PARTIE"
+
+	# Afficher le score final dans le log
+	_log_header("VICTOIRE DE %s" % _color_name(winner))
+	if resolution_log and game_manager.game_state:
+		for color in game_manager.game_state.get_active_players():
+			var total := game_manager.game_state.calculate_player_total_power(color)
+			var flags := game_manager.game_state.get_player(color).flags_captured.size()
+			resolution_log.append_text("  %s: puissance %d, %d drapeau(x)\n" % [
+				_color_name(color), total, flags])
 
 func _on_resolution_log(message: String) -> void:
 	print("[Power] %s" % message)
+	if resolution_log == null:
+		return
+
+	# Coloriser le message selon son contenu
+	var colored := _colorize_log(message)
+	resolution_log.append_text(colored + "\n")
+
+func _log_header(text: String) -> void:
+	if resolution_log == null:
+		return
+	resolution_log.append_text("\n[b][color=#FFD700]═══ %s ═══[/color][/b]\n" % text)
+
+func _colorize_log(message: String) -> String:
+	# Ordres exécutés avec succès
+	if message.begins_with("  OK:"):
+		return "[color=#88CC88]%s[/color]" % message
+
+	# Ordres illégaux
+	if message.begins_with("  ILLÉGAL:"):
+		return "[color=#CC6666]%s[/color]" % message
+
+	# Pénalité
+	if "Pénalité" in message or "pénalité" in message:
+		return "[color=#CC6666]%s[/color]" % message
+
+	# Combat gagné
+	if "gagne" in message and "Combat" in message:
+		return "[color=#66CCFF]⚔ %s[/color]" % message
+
+	# Égalité / rebond
+	if "Égalité" in message or "Rebond" in message or "rebond" in message:
+		return "[color=#CCCC66]↩ %s[/color]" % message
+
+	# Power gagné
+	if "Power" in message and "gagne" in message:
+		return "[color=#FFCC00]★ %s[/color]" % message
+
+	# Drapeau capturé
+	if "DRAPEAU" in message or "drapeau" in message:
+		return "[color=#FF6600][b]⚑ %s[/b][/color]" % message
+
+	# IA
+	if message.begins_with("IA "):
+		return "[color=#AAAAAA]%s[/color]" % message
+
+	# Temps écoulé
+	if "Temps écoulé" in message:
+		return "[color=#FF8888]%s[/color]" % message
+
+	# En-têtes de joueur (--- Ordres de X ---)
+	if message.begins_with("---"):
+		# Extraire la couleur du joueur
+		var player_color := _extract_player_color_from_log(message)
+		if player_color != "":
+			return "[b][color=%s]%s[/color][/b]" % [player_color, message]
+
+	return message
+
+func _extract_player_color_from_log(message: String) -> String:
+	if "Vert" in message:
+		return "#66CC66"
+	if "Bleu" in message:
+		return "#6688DD"
+	if "Jaune" in message:
+		return "#DDDD66"
+	if "Rouge" in message:
+		return "#DD6666"
+	return ""
 
 func _process(_delta: float) -> void:
 	if not _game_started:

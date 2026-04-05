@@ -245,6 +245,8 @@ func _execute_player_orders(player: PlayerData) -> void:
 func _validate_and_execute_order(order: Order, player: PlayerData) -> bool:
 	if order.order_type == GameEnums.OrderType.MOVE:
 		return _execute_move_order(order, player)
+	elif order.order_type == GameEnums.OrderType.LAUNCH:
+		return _execute_launch_order(order, player)
 	else:
 		return _execute_exchange_order(order, player)
 
@@ -302,6 +304,48 @@ func _execute_reserve_deploy(order: Order, player: PlayerData) -> bool:
 	unit_to_deploy.moved_this_turn = true
 	return true
 
+func _execute_launch_order(order: Order, player: PlayerData) -> bool:
+	## Lance un Méga-Missile depuis from_sector vers to_sector.
+	## Détruit TOUTES les unités sur le secteur cible sauf les drapeaux.
+	var from_sector := game_state.board.get_sector(order.from_sector)
+	if from_sector == null:
+		return false
+
+	# Trouver le missile du joueur sur le secteur source
+	var missile: UnitData = null
+	for unit in from_sector.units:
+		if unit.owner == player.color and unit.unit_type == GameEnums.UnitType.MEGA_MISSILE:
+			missile = unit
+			break
+
+	if missile == null:
+		return false
+
+	var to_sector := game_state.board.get_sector(order.to_sector)
+	if to_sector == null:
+		return false
+
+	# Retirer le missile du jeu (consommé)
+	game_state.remove_unit(missile)
+
+	# Détruire toutes les unités sur le secteur cible sauf les drapeaux
+	var units_to_destroy := to_sector.units.duplicate()
+	var destroyed_count := 0
+	for unit in units_to_destroy:
+		if unit.unit_type == GameEnums.UnitType.FLAG:
+			continue
+		game_state.remove_unit(unit)
+		destroyed_count += 1
+
+	resolution_log.emit("  MÉGA-MISSILE: %s → %s (%d unités détruites!)" % [
+		order.from_sector, order.to_sector, destroyed_count])
+
+	# Animation d'explosion
+	if anim_manager:
+		anim_manager.play_explosion(order.to_sector)
+
+	return true
+
 func _execute_exchange_order(order: Order, player: PlayerData) -> bool:
 	var location := order.exchange_location
 
@@ -321,6 +365,10 @@ func _execute_exchange_order(order: Order, player: PlayerData) -> bool:
 	if sector == null:
 		return false
 
+	# Création de Méga-Missile
+	if order.exchange_result == GameEnums.UnitType.MEGA_MISSILE:
+		return _execute_missile_creation(order, player, sector)
+
 	var source_type := order.unit_type
 	var target_type := order.exchange_result
 	var matching_units := []
@@ -337,6 +385,42 @@ func _execute_exchange_order(order: Order, player: PlayerData) -> bool:
 	var upgraded := UnitData.new(target_type, player.color, location)
 	game_state.all_units.append(upgraded)
 	sector.units.append(upgraded)
+	return true
+
+func _execute_missile_creation(order: Order, player: PlayerData, sector: Sector) -> bool:
+	## Sacrifie les unités listées dans exchange_units pour créer un Méga-Missile.
+	## exchange_units contient des dictionnaires {type: UnitType, count: int}.
+	var total_power := 0
+	var units_to_sacrifice: Array = []
+
+	for entry in order.exchange_units:
+		var unit_type: GameEnums.UnitType = entry["type"]
+		var count: int = entry["count"]
+		var found := 0
+		for unit in sector.units:
+			if unit.owner == player.color and unit.unit_type == unit_type and unit not in units_to_sacrifice:
+				units_to_sacrifice.append(unit)
+				total_power += GameEnums.get_unit_power(unit_type)
+				found += 1
+				if found >= count:
+					break
+		if found < count:
+			return false
+
+	if total_power < 100:
+		return false
+
+	# Sacrifier les unités
+	for unit in units_to_sacrifice:
+		game_state.remove_unit(unit)
+
+	# Créer le Méga-Missile sur le secteur
+	var missile := UnitData.new(GameEnums.UnitType.MEGA_MISSILE, player.color, sector.id)
+	game_state.all_units.append(missile)
+	sector.units.append(missile)
+
+	resolution_log.emit("  Création Méga-Missile en %s (puissance sacrifiée: %d)" % [
+		sector.id, total_power])
 	return true
 
 func _apply_inaction_penalty(player: PlayerData) -> void:

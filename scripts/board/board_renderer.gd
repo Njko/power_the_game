@@ -3,8 +3,6 @@ class_name BoardRenderer
 
 ## Rendu visuel du plateau de jeu Power - version polie.
 
-signal sector_clicked(sector_id: String)
-signal sector_hovered(sector_id: String)
 
 const CELL_SIZE := 55.0
 const CELL_PADDING := 2.0

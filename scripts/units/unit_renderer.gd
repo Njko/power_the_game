@@ -27,7 +27,7 @@ func _draw() -> void:
 	var positions: Dictionary = {}
 
 	if position_source_3d:
-		for sector_id in board_3d._grid_positions:
+		for sector_id in board_3d.get_all_sector_ids():
 			positions[sector_id] = board_3d.get_sector_screen_position(sector_id)
 	elif board_renderer != null:
 		positions = board_renderer.sector_positions

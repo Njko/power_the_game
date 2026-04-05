@@ -67,10 +67,10 @@ func _setup_3d_scene() -> void:
 	camera.fov = 50.0
 	add_child(camera)
 
-	# Éclairage minimal
-	var light := DirectionalLight3D.new()
-	light.rotation_degrees = Vector3(-45, 30, 0)
-	add_child(light)
+
+func get_all_sector_ids() -> Array:
+	## Retourne tous les sector_ids connus.
+	return _grid_positions.keys()
 
 func _build_grid_positions() -> void:
 	## Copie les positions grille du BoardRenderer (pixel) et les reconvertit en coordonnées grille.

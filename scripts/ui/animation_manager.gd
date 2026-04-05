@@ -27,9 +27,9 @@ var _world_overlay: Node2D
 var _screen_overlay: CanvasLayer
 
 func _ready() -> void:
-	# En mode 3D, AnimationManager est dans un CanvasLayer overlay.
-	# Les animations sont en coordonnées écran (projetées par Board3D).
-	_world_overlay = self  # On utilise soi-même comme overlay (déjà dans un CanvasLayer)
+	# Conteneur pour les animations en coordonnées monde (projetées par Board3D)
+	_world_overlay = Node2D.new()
+	add_child(_world_overlay)
 
 	_screen_overlay = CanvasLayer.new()
 	_screen_overlay.layer = 50

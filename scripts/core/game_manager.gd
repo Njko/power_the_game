@@ -39,9 +39,11 @@ func is_ai(color: GameEnums.PlayerColor) -> bool:
 	return color in ai_players
 
 func start_game(num_players: int = 4, p_human_color: GameEnums.PlayerColor = GameEnums.PlayerColor.GREEN) -> void:
-	board_renderer = get_node_or_null("../GameBoard/BoardRenderer") as BoardRenderer
-	unit_renderer = get_node_or_null("../GameBoard/UnitRenderer") as UnitRenderer
-	anim_manager = get_node_or_null("../GameBoard/AnimationManager") as AnimationManager
+	var board_3d_node = get_node_or_null("../Board3D") as Board3D
+	if board_3d_node:
+		board_renderer = board_3d_node.board_renderer
+	unit_renderer = get_node_or_null("../UnitOverlay/UnitRenderer") as UnitRenderer
+	anim_manager = get_node_or_null("../AnimOverlay/AnimationManager") as AnimationManager
 
 	if anim_manager and board_renderer:
 		anim_manager.board_renderer = board_renderer
@@ -66,9 +68,11 @@ func start_game(num_players: int = 4, p_human_color: GameEnums.PlayerColor = Gam
 
 func start_game_hotseat(num_players: int = 4) -> void:
 	## Lance une partie sans IA (tous les joueurs sont humains).
-	board_renderer = get_node_or_null("../GameBoard/BoardRenderer") as BoardRenderer
-	unit_renderer = get_node_or_null("../GameBoard/UnitRenderer") as UnitRenderer
-	anim_manager = get_node_or_null("../GameBoard/AnimationManager") as AnimationManager
+	var board_3d_node = get_node_or_null("../Board3D") as Board3D
+	if board_3d_node:
+		board_renderer = board_3d_node.board_renderer
+	unit_renderer = get_node_or_null("../UnitOverlay/UnitRenderer") as UnitRenderer
+	anim_manager = get_node_or_null("../AnimOverlay/AnimationManager") as AnimationManager
 
 	if anim_manager and board_renderer:
 		anim_manager.board_renderer = board_renderer

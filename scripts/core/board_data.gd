@@ -8,15 +8,18 @@ extends RefCounted
 ## - 5 îles : IN (Nord), IS (Sud), IE (Est), IW (Ouest), IX (Centre)
 ## - 12 secteurs maritimes : S1 à S12
 ##
-## Disposition du plateau (vue de dessus) :
+## Disposition du plateau 9×9 (vue de dessus) :
 ##
-##   HQ_V  V0 V1 V2  [S5]     [S1]  B0 B1 B2  HQ_B
-##   [S4]  V3 V4 V5  [IN]           B3 B4 B5  [S2]
-##         V6 V7 V8  [S6]           B6 B7 B8
-##   [S12] [IW] [S3]      [IX]      [S9] [IE] [S10]
-##         J0 J1 J2  [S8]           R0 R1 R2
-##   [S11] J3 J4 J5  [IS]           R3 R4 R5  [S7]
-##   HQ_J  J6 J7 J8  [S11b]   [S7b] R6 R7 R8  HQ_R
+## Col:  0    1    2    3    4    5    6    7    8
+## R0: HQ_V S5   S5   S5   IN   S1   S1   S1   HQ_B
+## R1: S4   V0   V1   V2   S6   B0   B1   B2   S2
+## R2: S4   V3   V4   V5   S6   B3   B4   B5   S2
+## R3: S4   V6   V7   V8   S6   B6   B7   B8   S2
+## R4: IW   S3   S3   S3   IX   S9   S9   S9   IE
+## R5: S12  J0   J1   J2   S8   R0   R1   R2   S10
+## R6: S12  J3   J4   J5   S8   R3   R4   R5   S10
+## R7: S12  J6   J7   J8   S8   R6   R7   R8   S10
+## R8: HQ_J S11  S11  S11  IS   S7   S7   S7   HQ_R
 ##
 ## Territoires: V=Vert (haut-gauche), B=Bleu (haut-droite),
 ##              J=Jaune (bas-gauche), R=Rouge (bas-droite)
@@ -31,10 +34,10 @@ func _init() -> void:
 # ===== CREATION DES SECTEURS =====
 
 func _create_all_sectors() -> void:
-	_create_territory("V", GameEnums.PlayerColor.GREEN, Vector2(1, 0))
-	_create_territory("B", GameEnums.PlayerColor.BLUE, Vector2(6, 0))
+	_create_territory("V", GameEnums.PlayerColor.GREEN, Vector2(1, 1))
+	_create_territory("B", GameEnums.PlayerColor.BLUE, Vector2(5, 1))
 	_create_territory("J", GameEnums.PlayerColor.YELLOW, Vector2(1, 5))
-	_create_territory("R", GameEnums.PlayerColor.RED, Vector2(6, 5))
+	_create_territory("R", GameEnums.PlayerColor.RED, Vector2(5, 5))
 
 	_create_hqs()
 	_create_islands()
@@ -58,9 +61,9 @@ func _create_territory(prefix: String, color: GameEnums.PlayerColor, origin: Vec
 func _create_hqs() -> void:
 	var hq_data := [
 		["HQ_V", GameEnums.PlayerColor.GREEN, Vector2(0, 0)],
-		["HQ_B", GameEnums.PlayerColor.BLUE, Vector2(9, 0)],
-		["HQ_J", GameEnums.PlayerColor.YELLOW, Vector2(0, 7)],
-		["HQ_R", GameEnums.PlayerColor.RED, Vector2(9, 7)],
+		["HQ_B", GameEnums.PlayerColor.BLUE, Vector2(8, 0)],
+		["HQ_J", GameEnums.PlayerColor.YELLOW, Vector2(0, 8)],
+		["HQ_R", GameEnums.PlayerColor.RED, Vector2(8, 8)],
 	]
 	for data in hq_data:
 		var id: String = data[0]
@@ -72,11 +75,11 @@ func _create_hqs() -> void:
 
 func _create_islands() -> void:
 	var island_data := [
-		["IN", Vector2(4.5, 1)],    # Île Nord (entre V et B)
-		["IS", Vector2(4.5, 6)],    # Île Sud (entre J et R)
-		["IW", Vector2(1, 3.5)],    # Île Ouest (entre V et J)
-		["IE", Vector2(8, 3.5)],    # Île Est (entre B et R)
-		["IX", Vector2(4.5, 3.5)],  # Île Centre
+		["IN", Vector2(4, 0)],    # Île Nord (entre V et B)
+		["IS", Vector2(4, 8)],    # Île Sud (entre J et R)
+		["IW", Vector2(0, 4)],    # Île Ouest (entre V et J)
+		["IE", Vector2(8, 4)],    # Île Est (entre B et R)
+		["IX", Vector2(4, 4)],    # Île Centre
 	]
 	for data in island_data:
 		var id: String = data[0]
@@ -87,25 +90,25 @@ func _create_islands() -> void:
 
 func _create_sea_sectors() -> void:
 	var sea_data := [
-		# Canal Nord (entre V et B)
-		["S5", Vector2(4.5, 0)],     # Côté V
-		["S1", Vector2(4.5, 0.5)],   # Côté B (au-dessus)
-		["S6", Vector2(4.5, 2)],     # Jonction vers centre
+		# Canal Nord
+		["S5", Vector2(2, 0)],    # Bande horizontale 3×1
+		["S1", Vector2(6, 0)],    # Bande horizontale 3×1
+		["S6", Vector2(4, 2)],    # Bande verticale 1×3
 
-		# Canal Ouest (entre V et J)
-		["S4", Vector2(0, 1.5)],     # Côté V
-		["S12", Vector2(0, 5.5)],    # Côté J
-		["S3", Vector2(2.5, 3.5)],   # Jonction vers centre
+		# Canal Ouest
+		["S4", Vector2(0, 2)],    # Bande verticale 1×3
+		["S12", Vector2(0, 6)],   # Bande verticale 1×3
+		["S3", Vector2(2, 4)],    # Bande horizontale 3×1
 
-		# Canal Est (entre B et R)
-		["S2", Vector2(9, 1.5)],     # Côté B
-		["S10", Vector2(9, 5.5)],    # Côté R
-		["S9", Vector2(6.5, 3.5)],   # Jonction vers centre
+		# Canal Est
+		["S2", Vector2(8, 2)],    # Bande verticale 1×3
+		["S10", Vector2(8, 6)],   # Bande verticale 1×3
+		["S9", Vector2(6, 4)],    # Bande horizontale 3×1
 
-		# Canal Sud (entre J et R)
-		["S11", Vector2(4.5, 7)],    # Côté J
-		["S7", Vector2(4.5, 7.5)],   # Côté R
-		["S8", Vector2(4.5, 5)],     # Jonction vers centre
+		# Canal Sud
+		["S11", Vector2(2, 8)],   # Bande horizontale 3×1
+		["S7", Vector2(6, 8)],    # Bande horizontale 3×1
+		["S8", Vector2(4, 6)],    # Bande verticale 1×3
 	]
 	for data in sea_data:
 		var id: String = data[0]
@@ -168,53 +171,61 @@ func _create_hq_adjacencies() -> void:
 	_add_adjacency("HQ_R", "S10")
 
 func _create_territory_sea_adjacencies() -> void:
-	# --- Territoire VERT (haut-gauche) ---
-	# Bord droit → Canal Nord
+	# --- Territoire VERT (haut-gauche) à (1,1)-(3,3) ---
+	# Bord haut (row 1) → S5 (row 0, cols 1-3)
 	_add_adjacency("V0", "S5")
+	_add_adjacency("V1", "S5")
 	_add_adjacency("V2", "S5")
-	_add_adjacency("V5", "IN")
-	_add_adjacency("V8", "S6")
-	# Bord bas → Canal Ouest
+	_add_adjacency("V2", "S6")  # V2(3,1) ↔ S6(4,1)
+	# Bord gauche (col 1) → S4 (col 0, rows 1-3)
 	_add_adjacency("V0", "S4")
+	_add_adjacency("V3", "S4")
 	_add_adjacency("V6", "S4")
-	_add_adjacency("V7", "IW")
-	_add_adjacency("V8", "S3")
+	# Bord bas (row 3) → îles et jonctions
+	_add_adjacency("V6", "IW")  # V6(1,3) ↔ IW(1,4)
+	_add_adjacency("V8", "S3")  # V8(3,3) ↔ S3(3,4)
 
-	# --- Territoire BLEU (haut-droite) ---
-	# Bord gauche → Canal Nord
+	# --- Territoire BLEU (haut-droite) à (5,1)-(7,3) ---
+	# Bord haut (row 1) → S1 (row 0, cols 5-7)
 	_add_adjacency("B0", "S1")
+	_add_adjacency("B0", "S6")  # B0(5,1) ↔ S6(4,1)
+	_add_adjacency("B1", "S1")
 	_add_adjacency("B2", "S1")
-	_add_adjacency("B3", "IN")
-	_add_adjacency("B6", "S6")
-	# Bord bas → Canal Est
+	# Bord droit (col 7) → S2 (col 8, rows 1-3)
 	_add_adjacency("B2", "S2")
+	_add_adjacency("B5", "S2")
 	_add_adjacency("B8", "S2")
-	_add_adjacency("B7", "IE")
-	_add_adjacency("B6", "S9")
+	# Bord bas (row 3) → îles et jonctions
+	_add_adjacency("B6", "S9")  # B6(5,3) ↔ S9(5,4)
+	_add_adjacency("B8", "IE")  # B8(7,3) ↔ IE(7,4)
 
-	# --- Territoire JAUNE (bas-gauche) ---
-	# Bord haut → Canal Ouest
+	# --- Territoire JAUNE (bas-gauche) à (1,5)-(3,7) ---
+	# Bord gauche (col 1) → S12 (col 0, rows 5-7)
 	_add_adjacency("J0", "S12")
+	_add_adjacency("J0", "IW")  # J0(1,5) ↔ IW(1,4)
+	_add_adjacency("J3", "S12")
 	_add_adjacency("J6", "S12")
-	_add_adjacency("J1", "IW")
-	_add_adjacency("J2", "S3")
-	# Bord droit → Canal Sud
+	# Bord haut (row 5) → jonctions
+	_add_adjacency("J2", "S3")  # J2(3,5) ↔ S3(3,4)
+	# Bord bas (row 7) → S11 (row 8, cols 1-3)
 	_add_adjacency("J6", "S11")
+	_add_adjacency("J7", "S11")
 	_add_adjacency("J8", "S11")
-	_add_adjacency("J5", "IS")
-	_add_adjacency("J2", "S8")
+	_add_adjacency("J8", "S8")  # J8(3,7) ↔ S8(4,7)
 
-	# --- Territoire ROUGE (bas-droite) ---
-	# Bord gauche → Canal Sud
-	_add_adjacency("R0", "S8")
-	_add_adjacency("R8", "S7")
-	_add_adjacency("R6", "S7")
-	_add_adjacency("R3", "IS")
-	# Bord haut → Canal Est
-	_add_adjacency("R0", "S9")
-	_add_adjacency("R8", "S10")
+	# --- Territoire ROUGE (bas-droite) à (5,5)-(7,7) ---
+	# Bord haut (row 5) → jonctions et îles
+	_add_adjacency("R0", "S9")  # R0(5,5) ↔ S9(5,4)
+	_add_adjacency("R2", "IE")  # R2(7,5) ↔ IE(7,4)
+	# Bord droit (col 7) → S10 (col 8, rows 5-7)
 	_add_adjacency("R2", "S10")
-	_add_adjacency("R1", "IE")
+	_add_adjacency("R5", "S10")
+	_add_adjacency("R8", "S10")
+	# Bord bas (row 7) → S7 (row 8, cols 5-7)
+	_add_adjacency("R6", "S7")
+	_add_adjacency("R6", "S8")  # R6(5,7) ↔ S8(4,7)
+	_add_adjacency("R7", "S7")
+	_add_adjacency("R8", "S7")
 
 func _create_sea_island_adjacencies() -> void:
 	# --- Canal Nord ---

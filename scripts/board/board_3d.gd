@@ -8,9 +8,9 @@ class_name Board3D
 signal sector_clicked(sector_id: String)
 signal sector_hovered(sector_id: String)
 
-# Le plateau logique va de ~(-1, -1.5) à ~(9, 8.5) en coordonnées grille.
-# En 3D, on centre tout à l'origine: grid (4, 3.5) → Vector3(0, 0, 0).
-const GRID_CENTER := Vector2(4.0, 3.5)
+# Le plateau logique va de (0, 0) à (8, 8) en coordonnées grille.
+# En 3D, on centre tout à l'origine: grid (4, 4) → Vector3(0, 0, 0).
+const GRID_CENTER := Vector2(4.0, 4.0)
 const SCALE_3D := 1.0  # 1 unité 3D par cellule de grille
 
 # SubViewport pour le rendu 2D du board
@@ -26,6 +26,7 @@ var board_data: BoardData
 
 # Positions grille de tous les secteurs (reconverties depuis les pixels du BoardRenderer)
 var _grid_positions: Dictionary = {}  # sector_id -> Vector2 (grille logique)
+var _grid_rects: Dictionary = {}  # sector_id -> Rect2 (rectangle en coordonnées grille)
 
 var _hovered_sector: String = ""
 
@@ -84,6 +85,12 @@ func _build_grid_positions() -> void:
 		# Inverse de la formule: pixel = BOARD_ORIGIN + grid * CELL_SIZE + CELL_SIZE/2
 		var grid_pos := (pixel_pos - BoardRenderer.BOARD_ORIGIN - Vector2(BoardRenderer.CELL_SIZE / 2, BoardRenderer.CELL_SIZE / 2)) / BoardRenderer.CELL_SIZE
 		_grid_positions[sector_id] = grid_pos
+	# Construire les rectangles grille depuis les sector_rects pixel du renderer
+	for sector_id in board_renderer.sector_rects:
+		var pixel_rect: Rect2 = board_renderer.sector_rects[sector_id]
+		var grid_origin := (pixel_rect.position - BoardRenderer.BOARD_ORIGIN) / BoardRenderer.CELL_SIZE
+		var grid_size := pixel_rect.size / BoardRenderer.CELL_SIZE
+		_grid_rects[sector_id] = Rect2(grid_origin, grid_size)
 
 # ===== CONVERSIONS DE COORDONNÉES =====
 
@@ -141,7 +148,13 @@ func screen_to_board_sector(screen_pos: Vector2) -> String:
 	# Convertir en coordonnées grille
 	var grid_pos := world_to_grid(hit_point)
 
-	# Trouver le secteur le plus proche (distance < 0.8 cellule pour faciliter le clic)
+	# Chercher d'abord dans les rectangles grille (gère les bandes maritimes 3×1 / 1×3)
+	for sector_id in _grid_rects:
+		var rect: Rect2 = _grid_rects[sector_id]
+		if rect.has_point(grid_pos):
+			return sector_id
+
+	# Fallback: secteur le plus proche (distance < 0.8 cellule)
 	var best_id := ""
 	var best_dist := 0.8
 	for sector_id in _grid_positions:

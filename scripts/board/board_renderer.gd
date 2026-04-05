@@ -6,12 +6,10 @@ class_name BoardRenderer
 
 const CELL_SIZE := 55.0
 const CELL_PADDING := 2.0
-# Le grille va de (0,0) à (7,7) pour les territoires, le centre logique est (3.75, 3.5)
-# Zone utile écran: X=[0, 1015], Y=[42, 670] → centre ~(507, 356)
-# BOARD_ORIGIN = centre_écran - centre_grille * CELL_SIZE
-# Pour SubViewport 1024x1024: centrer la grille sur GRID_CENTER=(4.0, 3.5)
-# Le pixel (512, 512) correspond à la position 3D (0,0,0) = grille (4.0, 3.5)
-const BOARD_ORIGIN := Vector2(512 - 4.0 * 55.0 - 27.5, 512 - 3.5 * 55.0 - 27.5)  # (264.5, 292.0)
+# La grille va de (0,0) à (8,8) — plateau 9×9 avec bandes maritimes
+# Pour SubViewport 1024x1024: centrer la grille sur GRID_CENTER=(4.0, 4.0)
+# Le pixel (512, 512) correspond à la position 3D (0,0,0) = grille (4.0, 4.0)
+const BOARD_ORIGIN := Vector2(512 - 4.0 * 55.0 - 27.5, 512 - 4.0 * 55.0 - 27.5)  # (264.5, 264.5)
 const CORNER_RADIUS := 6.0
 
 # Palette
@@ -50,9 +48,9 @@ func _ready() -> void:
 
 func _calculate_sector_positions() -> void:
 	var territory_origins := {
-		"V": Vector2(0, 0),
-		"B": Vector2(5, 0),
-		"J": Vector2(0, 5),
+		"V": Vector2(1, 1),
+		"B": Vector2(5, 1),
+		"J": Vector2(1, 5),
 		"R": Vector2(5, 5),
 	}
 
@@ -69,12 +67,12 @@ func _calculate_sector_positions() -> void:
 				pixel_pos - Vector2(CELL_SIZE / 2, CELL_SIZE / 2),
 				Vector2(CELL_SIZE, CELL_SIZE))
 
-	# QG
+	# QG aux 4 coins de la grille 9×9
 	var hq_data := {
-		"HQ_V": Vector2(-1, -0.5),
-		"HQ_B": Vector2(8, -0.5),
-		"HQ_J": Vector2(-1, 7.5),
-		"HQ_R": Vector2(8, 7.5),
+		"HQ_V": Vector2(0, 0),
+		"HQ_B": Vector2(8, 0),
+		"HQ_J": Vector2(0, 8),
+		"HQ_R": Vector2(8, 8),
 	}
 	for hq_id in hq_data:
 		var pixel_pos: Vector2 = BOARD_ORIGIN + Vector2(hq_data[hq_id]) * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
@@ -83,27 +81,45 @@ func _calculate_sector_positions() -> void:
 			pixel_pos - Vector2(CELL_SIZE / 2, CELL_SIZE / 2),
 			Vector2(CELL_SIZE, CELL_SIZE))
 
-	# Secteurs maritimes
-	var sea_grid := {
-		"S5": Vector2(3.5, -0.5), "S1": Vector2(4.5, -0.5),
-		"S6": Vector2(4, 2), "S4": Vector2(-0.5, 1.5),
-		"S12": Vector2(-0.5, 5.5), "S3": Vector2(3, 3.5),
-		"S9": Vector2(5, 3.5), "S2": Vector2(8.5, 1.5),
-		"S10": Vector2(8.5, 5.5), "S8": Vector2(4, 5),
-		"S11": Vector2(3.5, 7.5), "S7": Vector2(4.5, 7.5),
+	# Secteurs maritimes en bande (3 cellules chacun)
+	var sea_strips := {
+		# id: [center_grid, is_horizontal]
+		"S5": [Vector2(2, 0), true],    # Haut gauche, horizontal 3×1
+		"S1": [Vector2(6, 0), true],    # Haut droit, horizontal 3×1
+		"S4": [Vector2(0, 2), false],   # Gauche haut, vertical 1×3
+		"S2": [Vector2(8, 2), false],   # Droit haut, vertical 1×3
+		"S6": [Vector2(4, 2), false],   # Centre haut, vertical 1×3
+		"S3": [Vector2(2, 4), true],    # Centre gauche, horizontal 3×1
+		"S9": [Vector2(6, 4), true],    # Centre droit, horizontal 3×1
+		"S8": [Vector2(4, 6), false],   # Centre bas, vertical 1×3
+		"S12": [Vector2(0, 6), false],  # Gauche bas, vertical 1×3
+		"S10": [Vector2(8, 6), false],  # Droit bas, vertical 1×3
+		"S11": [Vector2(2, 8), true],   # Bas gauche, horizontal 3×1
+		"S7": [Vector2(6, 8), true],    # Bas droit, horizontal 3×1
 	}
-	for sea_id in sea_grid:
-		var pixel_pos: Vector2 = BOARD_ORIGIN + Vector2(sea_grid[sea_id]) * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
-		sector_positions[sea_id] = pixel_pos
-		sector_rects[sea_id] = Rect2(
-			pixel_pos - Vector2(CELL_SIZE / 2, CELL_SIZE / 2),
-			Vector2(CELL_SIZE, CELL_SIZE))
+	for sea_id in sea_strips:
+		var data: Array = sea_strips[sea_id]
+		var grid_center: Vector2 = data[0]
+		var is_horizontal: bool = data[1]
+		var pixel_center: Vector2 = BOARD_ORIGIN + grid_center * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
+		sector_positions[sea_id] = pixel_center
+		# Le rect couvre 3 cellules
+		if is_horizontal:
+			sector_rects[sea_id] = Rect2(
+				BOARD_ORIGIN + Vector2(grid_center.x - 1, grid_center.y) * CELL_SIZE,
+				Vector2(CELL_SIZE * 3, CELL_SIZE))
+		else:
+			sector_rects[sea_id] = Rect2(
+				BOARD_ORIGIN + Vector2(grid_center.x, grid_center.y - 1) * CELL_SIZE,
+				Vector2(CELL_SIZE, CELL_SIZE * 3))
 
 	# Îles
 	var island_grid := {
-		"IN": Vector2(4, 0.5), "IS": Vector2(4, 6.5),
-		"IW": Vector2(1.5, 3.5), "IE": Vector2(6.5, 3.5),
-		"IX": Vector2(4, 3.5),
+		"IN": Vector2(4, 0),
+		"IS": Vector2(4, 8),
+		"IW": Vector2(0, 4),
+		"IE": Vector2(8, 4),
+		"IX": Vector2(4, 4),
 	}
 	for island_id in island_grid:
 		var pixel_pos: Vector2 = BOARD_ORIGIN + Vector2(island_grid[island_id]) * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
@@ -130,8 +146,8 @@ func _draw() -> void:
 
 func _draw_ocean_background() -> void:
 	var board_rect := Rect2(
-		BOARD_ORIGIN + Vector2(-2, -1.5) * CELL_SIZE,
-		Vector2(11, 10) * CELL_SIZE)
+		BOARD_ORIGIN + Vector2(-0.5, -0.5) * CELL_SIZE,
+		Vector2(10, 10) * CELL_SIZE)
 	# Fond
 	draw_rect(board_rect, COLOR_SEA_DEEP)
 	# Vagues subtiles (lignes horizontales semi-transparentes)
@@ -212,10 +228,18 @@ func _draw_land_sector(rect: Rect2, sector: Sector, sector_id: String) -> void:
 
 func _draw_sea_sector(rect: Rect2, sector_id: String) -> void:
 	draw_rect(rect, COLOR_SEA_LIGHT)
-	# Petites vagues
+	# Petites vagues adaptées à la taille du rect
 	var center := rect.get_center()
-	draw_line(center + Vector2(-8, -2), center + Vector2(8, -2), Color(0.3, 0.5, 0.8, 0.3), 1.0)
-	draw_line(center + Vector2(-6, 2), center + Vector2(6, 2), Color(0.3, 0.5, 0.8, 0.2), 1.0)
+	var half_w := rect.size.x * 0.15
+	var half_h := rect.size.y * 0.15
+	if rect.size.x >= rect.size.y:
+		# Horizontal ou carré: vagues horizontales
+		draw_line(center + Vector2(-half_w, -2), center + Vector2(half_w, -2), Color(0.3, 0.5, 0.8, 0.3), 1.0)
+		draw_line(center + Vector2(-half_w * 0.75, 2), center + Vector2(half_w * 0.75, 2), Color(0.3, 0.5, 0.8, 0.2), 1.0)
+	else:
+		# Vertical: vagues verticales
+		draw_line(center + Vector2(-2, -half_h), center + Vector2(-2, half_h), Color(0.3, 0.5, 0.8, 0.3), 1.0)
+		draw_line(center + Vector2(2, -half_h * 0.75), center + Vector2(2, half_h * 0.75), Color(0.3, 0.5, 0.8, 0.2), 1.0)
 	_draw_sector_label(rect, sector_id, Color(0.7, 0.8, 1.0, 0.6), 9)
 
 func _draw_island_sector(rect: Rect2, sector_id: String) -> void:

@@ -20,14 +20,13 @@ func _build_ui() -> void:
 	deco.anchors_preset = Control.PRESET_FULL_RECT
 	add_child(deco)
 
-	var center := CenterContainer.new()
-	center.anchors_preset = Control.PRESET_FULL_RECT
-	add_child(center)
-
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_theme_constant_override("separation", 10)
-	center.add_child(vbox)
+	vbox.set_anchors_preset(Control.PRESET_CENTER)
+	vbox.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	vbox.grow_vertical = Control.GROW_DIRECTION_BOTH
+	add_child(vbox)
 
 	# Titre principal
 	var title := Label.new()
@@ -91,6 +90,18 @@ func _build_ui() -> void:
 	_add_game_button(hot_box, "3", "Joueurs", Color(0.85, 0.55, 0.25), _on_hotseat.bind(3))
 	_add_game_button(hot_box, "4", "Joueurs", Color(0.85, 0.55, 0.25), _on_hotseat.bind(4))
 
+	_add_spacer(vbox, 10)
+
+	# --- Spectateur ---
+	_add_section_title(vbox, "SPECTATEUR", Color(0.6, 0.8, 0.5))
+
+	var spec_box := HBoxContainer.new()
+	spec_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	spec_box.add_theme_constant_override("separation", 12)
+	vbox.add_child(spec_box)
+
+	_add_game_button(spec_box, "4 IA", "Observer", Color(0.45, 0.65, 0.35), _on_spectate)
+
 	_add_spacer(vbox, 20)
 
 	# Crédits
@@ -149,8 +160,12 @@ func _add_game_button(parent: Control, main_text: String, sub_text: String,
 
 func _on_solo(num_players: int) -> void:
 	game_start_requested.emit(num_players, GameEnums.PlayerColor.GREEN, true)
-	queue_free()
+	get_parent().queue_free()  # Supprime le CanvasLayer parent aussi
 
 func _on_hotseat(num_players: int) -> void:
 	game_start_requested.emit(num_players, GameEnums.PlayerColor.NONE, false)
-	queue_free()
+	get_parent().queue_free()  # Supprime le CanvasLayer parent aussi
+
+func _on_spectate() -> void:
+	game_start_requested.emit(4, GameEnums.PlayerColor.NONE, true)
+	get_parent().queue_free()

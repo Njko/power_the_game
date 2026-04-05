@@ -38,10 +38,14 @@ func _ready() -> void:
 	camera_controller.camera = board_3d.camera
 	camera_controller._update_camera_position()
 
-	# Afficher l'écran titre
+	# Afficher l'écran titre dans un CanvasLayer pour centrage correct
+	var title_layer := CanvasLayer.new()
+	title_layer.layer = 30
+	title_layer.name = "TitleLayer"
+	add_child(title_layer)
 	var title := preload("res://scripts/ui/title_screen.gd").new()
 	title.game_start_requested.connect(_on_game_start_requested)
-	add_child(title)
+	title_layer.add_child(title)
 
 func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerColor, is_solo: bool) -> void:
 	# Montrer les éléments de jeu

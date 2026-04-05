@@ -34,12 +34,12 @@ func _build_ui() -> void:
 	title.text = "P O W E R"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_font_size_override("font_size", 80)
-	title.add_theme_color_override("font_color", Color(1.0, 0.65, 0.1))
+	title.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
 	vbox.add_child(title)
 
 	# Ligne dorée
 	var line := ColorRect.new()
-	line.color = Color(1.0, 0.7, 0.2, 0.6)
+	line.color = Color(1.0, 0.75, 0.2)
 	line.custom_minimum_size = Vector2(400, 2)
 	var line_center := CenterContainer.new()
 	line_center.add_child(line)
@@ -50,7 +50,7 @@ func _build_ui() -> void:
 	subtitle.text = "Jeu de Strategie Militaire"
 	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	subtitle.add_theme_font_size_override("font_size", 18)
-	subtitle.add_theme_color_override("font_color", Color(0.65, 0.65, 0.75))
+	subtitle.add_theme_color_override("font_color", Color(0.80, 0.80, 0.88))
 	vbox.add_child(subtitle)
 
 	_add_spacer(vbox, 8)
@@ -60,7 +60,7 @@ func _build_ui() -> void:
 	desc.text = "Programmez vos ordres. Deployez vos armees.\nCapturez les drapeaux ennemis. Aucun hasard."
 	desc.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	desc.add_theme_font_size_override("font_size", 13)
-	desc.add_theme_color_override("font_color", Color(0.50, 0.50, 0.58))
+	desc.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
 	vbox.add_child(desc)
 
 	_add_spacer(vbox, 16)
@@ -98,7 +98,7 @@ func _build_ui() -> void:
 	credits.text = "Inspire du jeu de societe Power (Spear's Games, 1981)"
 	credits.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	credits.add_theme_font_size_override("font_size", 10)
-	credits.add_theme_color_override("font_color", Color(0.3, 0.3, 0.38))
+	credits.add_theme_color_override("font_color", Color(0.45, 0.45, 0.55))
 	vbox.add_child(credits)
 
 func _add_spacer(parent: Control, height: float) -> void:

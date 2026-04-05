@@ -39,6 +39,8 @@ func _setup_subviewport() -> void:
 	board_viewport.size = Vector2i(1024, 1024)
 	board_viewport.transparent_bg = false
 	board_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	board_viewport.gui_disable_input = true  # Ne pas intercepter les clics
+	board_viewport.handle_input_locally = true
 	add_child(board_viewport)
 
 	# Le BoardRenderer dessine dans ce SubViewport

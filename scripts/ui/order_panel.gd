@@ -16,6 +16,11 @@ var pending_orders: Array[Order] = []
 var _selected_unit: UnitData = null
 var _selected_from_sector: String = ""
 var _is_exchange_mode: bool = false
+var _is_missile_create_mode: bool = false
+var _missile_create_sector: String = ""
+var _missile_selected_units: Dictionary = {}  # UnitType -> count
+var _missile_available_units: Dictionary = {}  # UnitType -> max available count
+var _missile_total_power: int = 0
 
 # Noeuds UI créés dynamiquement
 var _title_label: Label
@@ -80,6 +85,12 @@ func _build_ui() -> void:
 	_exchange_button.pressed.connect(_on_exchange_pressed)
 	btn_box.add_child(_exchange_button)
 
+	var _missile_button := Button.new()
+	_missile_button.text = "Créer Méga-Missile"
+	_missile_button.name = "MissileButton"
+	_missile_button.pressed.connect(_on_missile_create_pressed)
+	btn_box.add_child(_missile_button)
+
 	_reserve_button = Button.new()
 	_reserve_button.text = "Depuis la Réserve"
 	_reserve_button.pressed.connect(_on_reserve_pressed)
@@ -121,6 +132,11 @@ func activate(player_color: GameEnums.PlayerColor) -> void:
 	_selected_unit = null
 	_selected_from_sector = ""
 	_is_exchange_mode = false
+	_is_missile_create_mode = false
+	_missile_create_sector = ""
+	_missile_selected_units.clear()
+	_missile_available_units.clear()
+	_missile_total_power = 0
 	visible = true
 
 	var color_name := _get_color_name(player_color)
@@ -152,6 +168,10 @@ func update_timer(seconds: float) -> void:
 
 func handle_sector_click(sector_id: String) -> void:
 	if game_state == null:
+		return
+
+	if _is_missile_create_mode:
+		_handle_missile_create_click(sector_id)
 		return
 
 	if _is_exchange_mode:
@@ -195,19 +215,31 @@ func _try_select_unit(sector_id: String) -> void:
 	_selected_from_sector = sector_id
 
 	# Afficher les destinations possibles
-	var max_move: int = _selected_unit.get_max_move()
-	var reachable := game_state.board.get_reachable_sectors(sector_id, _selected_unit.unit_type, max_move)
-	var typed: Array[String] = []
-	for s in reachable:
-		typed.append(s)
-	if board_renderer:
-		board_renderer.highlight_sectors(typed)
-		board_renderer.selected_sector = sector_id
-		board_renderer.queue_redraw()
+	if _selected_unit.unit_type == GameEnums.UnitType.MEGA_MISSILE:
+		# Méga-Missile: portée illimitée, tous les secteurs du plateau
+		var all_sectors: Array[String] = []
+		for sid in game_state.board.sectors:
+			if sid != sector_id:
+				all_sectors.append(sid)
+		if board_renderer:
+			board_renderer.highlight_sectors(all_sectors)
+			board_renderer.selected_sector = sector_id
+			board_renderer.queue_redraw()
+		_instruction_label.text = "Méga-Missile sélectionné en %s\nCliquez sur le secteur cible (portée illimitée)" % sector_id
+	else:
+		var max_move: int = _selected_unit.get_max_move()
+		var reachable := game_state.board.get_reachable_sectors(sector_id, _selected_unit.unit_type, max_move)
+		var typed: Array[String] = []
+		for s in reachable:
+			typed.append(s)
+		if board_renderer:
+			board_renderer.highlight_sectors(typed)
+			board_renderer.selected_sector = sector_id
+			board_renderer.queue_redraw()
 
-	_instruction_label.text = "%s sélectionné(e) en %s\nCliquez sur la destination (max %d cases)" % [
-		_selected_unit.get_display_name(), sector_id, max_move
-	]
+		_instruction_label.text = "%s sélectionné(e) en %s\nCliquez sur la destination (max %d cases)" % [
+			_selected_unit.get_display_name(), sector_id, max_move
+		]
 
 func _try_set_destination(sector_id: String) -> void:
 	if pending_orders.size() >= MAX_ORDERS:
@@ -222,6 +254,15 @@ func _try_set_destination(sector_id: String) -> void:
 
 	var to_sector := game_state.board.get_sector(sector_id)
 	if to_sector == null:
+		return
+
+	# Méga-Missile: créer un ordre LAUNCH (pas de restriction terrain/distance)
+	if _selected_unit.unit_type == GameEnums.UnitType.MEGA_MISSILE:
+		var order := Order.create_launch(current_player, _selected_from_sector, sector_id)
+		pending_orders.append(order)
+		_instruction_label.text = "Lancement Méga-Missile: %s → %s" % [_selected_from_sector, sector_id]
+		_deselect()
+		_refresh_order_list()
 		return
 
 	# Vérifier l'accessibilité
@@ -451,6 +492,160 @@ func _on_reserve_pressed() -> void:
 	var order := Order.create_move(current_player, unit_to_deploy.unit_type, "RV", hq_id)
 	pending_orders.append(order)
 	_instruction_label.text = "Déploiement: %s → QG" % unit_to_deploy.get_display_name()
+	_refresh_order_list()
+
+func _on_missile_create_pressed() -> void:
+	_is_missile_create_mode = true
+	_is_exchange_mode = false
+	_deselect()
+	_missile_create_sector = ""
+	_missile_selected_units.clear()
+	_missile_available_units.clear()
+	_missile_total_power = 0
+	_instruction_label.text = "Création Méga-Missile: cliquez sur un secteur avec vos unités (100+ puissance requise)"
+
+func _handle_missile_create_click(sector_id: String) -> void:
+	if _missile_create_sector == "":
+		# Étape 1: sélectionner le secteur de création
+		var sector := game_state.board.get_sector(sector_id)
+		if sector == null:
+			return
+
+		# Calculer les unités disponibles du joueur sur ce secteur
+		_missile_available_units.clear()
+		var max_possible_power := 0
+		for unit in sector.units:
+			if unit.owner == current_player and unit.unit_type != GameEnums.UnitType.FLAG and unit.unit_type != GameEnums.UnitType.MEGA_MISSILE:
+				var ut: GameEnums.UnitType = unit.unit_type
+				if ut not in _missile_available_units:
+					_missile_available_units[ut] = 0
+				_missile_available_units[ut] += 1
+				max_possible_power += GameEnums.get_unit_power(ut)
+
+		if max_possible_power < 100:
+			_instruction_label.text = "Puissance insuffisante sur ce secteur (%d/100). Choisissez un autre secteur." % max_possible_power
+			return
+
+		_missile_create_sector = sector_id
+		# Par défaut, sélectionner toutes les unités
+		_missile_selected_units = _missile_available_units.duplicate()
+		_missile_total_power = max_possible_power
+		_update_missile_ui()
+	else:
+		# Clic ailleurs = annuler
+		_cancel_missile_create()
+
+func _update_missile_ui() -> void:
+	## Met à jour l'instruction avec l'état de la sélection missile.
+	var lines := "Création Méga-Missile en %s\n" % _missile_create_sector
+	_missile_total_power = 0
+
+	for ut in _missile_selected_units:
+		var count: int = _missile_selected_units[ut]
+		var power: int = GameEnums.get_unit_power(ut) * count
+		_missile_total_power += power
+		var max_count: int = _missile_available_units[ut]
+		lines += "%s: %d/%d (puissance: %d)\n" % [
+			GameEnums.get_unit_name(ut), count, max_count, power]
+
+	lines += "Total: %d/100" % _missile_total_power
+
+	if _missile_total_power >= 100:
+		lines += " ✓ Cliquez Confirmer pour créer!"
+	else:
+		lines += " (ajoutez des unités avec +/-)"
+
+	_instruction_label.text = lines
+	_refresh_missile_selection_buttons()
+
+func _refresh_missile_selection_buttons() -> void:
+	## Affiche les boutons +/- pour chaque type d'unité dans la liste d'ordres.
+	for child in _order_list.get_children():
+		child.queue_free()
+
+	for ut in _missile_available_units:
+		var max_count: int = _missile_available_units[ut]
+		var current_count: int = _missile_selected_units.get(ut, 0)
+
+		var hbox := HBoxContainer.new()
+
+		var label := Label.new()
+		label.text = "%s: %d/%d" % [GameEnums.get_unit_name(ut), current_count, max_count]
+		label.add_theme_font_size_override("font_size", 12)
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hbox.add_child(label)
+
+		var minus_btn := Button.new()
+		minus_btn.text = "-"
+		minus_btn.custom_minimum_size = Vector2(24, 24)
+		minus_btn.disabled = current_count <= 0
+		minus_btn.pressed.connect(_on_missile_unit_change.bind(ut, -1))
+		hbox.add_child(minus_btn)
+
+		var plus_btn := Button.new()
+		plus_btn.text = "+"
+		plus_btn.custom_minimum_size = Vector2(24, 24)
+		plus_btn.disabled = current_count >= max_count
+		plus_btn.pressed.connect(_on_missile_unit_change.bind(ut, 1))
+		hbox.add_child(plus_btn)
+
+		_order_list.add_child(hbox)
+
+	# Boutons confirmer / annuler
+	var btn_hbox := HBoxContainer.new()
+	btn_hbox.add_theme_constant_override("separation", 4)
+
+	var confirm := Button.new()
+	confirm.text = "Confirmer (%d)" % _missile_total_power
+	confirm.disabled = _missile_total_power < 100
+	confirm.pressed.connect(_on_missile_create_confirm)
+	btn_hbox.add_child(confirm)
+
+	var cancel := Button.new()
+	cancel.text = "Annuler"
+	cancel.pressed.connect(_cancel_missile_create)
+	btn_hbox.add_child(cancel)
+
+	_order_list.add_child(btn_hbox)
+
+func _on_missile_unit_change(ut: GameEnums.UnitType, delta: int) -> void:
+	var current: int = _missile_selected_units.get(ut, 0)
+	var max_count: int = _missile_available_units.get(ut, 0)
+	var new_count: int = clampi(current + delta, 0, max_count)
+	_missile_selected_units[ut] = new_count
+	_update_missile_ui()
+
+func _on_missile_create_confirm() -> void:
+	if pending_orders.size() >= MAX_ORDERS:
+		_instruction_label.text = "Maximum 5 ordres atteint!"
+		_cancel_missile_create()
+		return
+
+	if _missile_total_power < 100:
+		return
+
+	# Construire la liste des unités sacrifiées
+	var sacrificed: Array = []
+	for ut in _missile_selected_units:
+		var count: int = _missile_selected_units[ut]
+		if count > 0:
+			sacrificed.append({"type": ut, "count": count})
+
+	var order := Order.create_missile_exchange(
+		current_player, sacrificed, _missile_create_sector)
+	pending_orders.append(order)
+
+	_instruction_label.text = "Méga-Missile créé en %s! (puissance sacrifiée: %d)" % [
+		_missile_create_sector, _missile_total_power]
+	_cancel_missile_create()
+	_refresh_order_list()
+
+func _cancel_missile_create() -> void:
+	_is_missile_create_mode = false
+	_missile_create_sector = ""
+	_missile_selected_units.clear()
+	_missile_available_units.clear()
+	_missile_total_power = 0
 	_refresh_order_list()
 
 func _get_color_name(color: GameEnums.PlayerColor) -> String:

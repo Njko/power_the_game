@@ -11,7 +11,9 @@ const CELL_PADDING := 2.0
 # Le grille va de (0,0) à (7,7) pour les territoires, le centre logique est (3.75, 3.5)
 # Zone utile écran: X=[0, 1015], Y=[42, 670] → centre ~(507, 356)
 # BOARD_ORIGIN = centre_écran - centre_grille * CELL_SIZE
-const BOARD_ORIGIN := Vector2(507 - 3.75 * 55.0, 356 - 3.5 * 55.0)  # ~(300.75, 163.5)
+# Pour SubViewport 1024x1024: centrer la grille (~11x10 cellules)
+# Centre grille logique: (3.75, 3.5). Centre viewport: (512, 512)
+const BOARD_ORIGIN := Vector2(512 - 3.75 * 55.0, 512 - 3.5 * 55.0)
 const CORNER_RADIUS := 6.0
 
 # Palette
@@ -37,6 +39,7 @@ const TERRITORY_COLORS := {
 }
 
 var board_data: BoardData
+var board_3d: Board3D
 var sector_rects: Dictionary = {}
 var hovered_sector: String = ""
 var selected_sector: String = ""
@@ -285,32 +288,12 @@ func _draw_sector_label(rect: Rect2, label_text: String, color: Color, font_size
 	draw_string(font, text_pos + Vector2(1, 1), label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(0, 0, 0, 0.35))
 	draw_string(font, text_pos, label_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
-# ===== INPUT =====
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseMotion:
-		var old_hovered := hovered_sector
-		hovered_sector = _get_sector_at(event.position)
-		if hovered_sector != old_hovered:
-			if hovered_sector != "":
-				sector_hovered.emit(hovered_sector)
-			queue_redraw()
-
-	elif event is InputEventMouseButton:
-		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			var clicked := _get_sector_at(event.position)
-			if clicked != "":
-				selected_sector = clicked
-				sector_clicked.emit(clicked)
-				queue_redraw()
-
-func _get_sector_at(pos: Vector2) -> String:
-	for sector_id in sector_rects:
-		if sector_rects[sector_id].has_point(pos):
-			return sector_id
-	return ""
-
 func get_sector_position(sector_id: String) -> Vector2:
+	## Retourne la position écran projetée du secteur.
+	## Si board_3d est disponible, projette via la caméra 3D.
+	## Sinon, retourne la position pixel brute (fallback).
+	if board_3d != null:
+		return board_3d.get_sector_screen_position(sector_id)
 	return sector_positions.get(sector_id, Vector2.ZERO)
 
 func highlight_sectors(sector_ids: Array[String]) -> void:

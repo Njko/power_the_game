@@ -87,6 +87,7 @@ script = ExtResource("7")
 script = ExtResource("5")
 
 [node name="GameUI" type="CanvasLayer" parent="."]
+layer = 20
 
 [node name="TopBar" type="PanelContainer" parent="GameUI"]
 anchors_preset = 10

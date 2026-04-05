@@ -5,7 +5,7 @@ class_name UnitRenderer
 ## Chaque type d'unité a une forme unique, colorée selon le joueur.
 
 var board_renderer: BoardRenderer
-var board_3d: Board3D
+var board_3d  # Board3D — set by main.gd
 var game_state: GameState
 
 const ICON_SIZE := 8.0       # Rayon de base des icônes

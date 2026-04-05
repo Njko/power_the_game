@@ -37,7 +37,7 @@ const TERRITORY_COLORS := {
 }
 
 var board_data: BoardData
-var board_3d: Board3D
+var board_3d  # Board3D — set by Board3D._setup_subviewport()
 var sector_rects: Dictionary = {}
 var hovered_sector: String = ""
 var selected_sector: String = ""

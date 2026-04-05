@@ -39,7 +39,7 @@ func is_ai(color: GameEnums.PlayerColor) -> bool:
 	return color in ai_players
 
 func start_game(num_players: int = 4, p_human_color: GameEnums.PlayerColor = GameEnums.PlayerColor.GREEN) -> void:
-	var board_3d_node = get_node_or_null("../Board3D") as Board3D
+	var board_3d_node = get_node_or_null("../Board3D")
 	if board_3d_node:
 		board_renderer = board_3d_node.board_renderer
 	unit_renderer = get_node_or_null("../UnitOverlay/UnitRenderer") as UnitRenderer
@@ -68,7 +68,7 @@ func start_game(num_players: int = 4, p_human_color: GameEnums.PlayerColor = Gam
 
 func start_game_hotseat(num_players: int = 4) -> void:
 	## Lance une partie sans IA (tous les joueurs sont humains).
-	var board_3d_node = get_node_or_null("../Board3D") as Board3D
+	var board_3d_node = get_node_or_null("../Board3D")
 	if board_3d_node:
 		board_renderer = board_3d_node.board_renderer
 	unit_renderer = get_node_or_null("../UnitOverlay/UnitRenderer") as UnitRenderer

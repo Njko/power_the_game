@@ -3,12 +3,12 @@ extends Node
 ## Scène racine du jeu Power.
 ## Orchestre les composants: plateau, unités, game manager, UI, ordres.
 
-@onready var board_3d: Board3D = $Board3D
+@onready var board_3d = $Board3D  # Board3D
 @onready var unit_renderer: UnitRenderer = $UnitOverlay/UnitRenderer
 @onready var game_manager: Node = $GameManager
 @onready var order_panel: OrderPanel = $GameUI/OrderPanel
 @onready var anim_manager: AnimationManager = $AnimOverlay/AnimationManager
-@onready var camera_controller: CameraController = $Board3D/CameraController
+@onready var camera_controller = $Board3D/CameraController  # CameraController
 
 var board_renderer: BoardRenderer
 

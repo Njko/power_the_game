@@ -52,8 +52,9 @@ func _setup_3d_scene() -> void:
 	# Plan 3D horizontal (XZ) pour le plateau
 	board_mesh = MeshInstance3D.new()
 	var plane := PlaneMesh.new()
-	# Le plateau fait environ 11x10 cellules. On le rend carré pour la texture (1024x1024).
-	plane.size = Vector2(12.0, 12.0)
+	# 1 unité 3D = 1 cellule grille = CELL_SIZE pixels dans le SubViewport
+	# → plane_size = viewport_size / CELL_SIZE = 1024/55 ≈ 18.618
+	plane.size = Vector2(1024.0 / 55.0, 1024.0 / 55.0)
 	board_mesh.mesh = plane
 	add_child(board_mesh)
 

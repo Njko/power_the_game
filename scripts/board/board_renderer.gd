@@ -9,9 +9,9 @@ const CELL_PADDING := 2.0
 # Le grille va de (0,0) à (7,7) pour les territoires, le centre logique est (3.75, 3.5)
 # Zone utile écran: X=[0, 1015], Y=[42, 670] → centre ~(507, 356)
 # BOARD_ORIGIN = centre_écran - centre_grille * CELL_SIZE
-# Pour SubViewport 1024x1024: centrer la grille (~11x10 cellules)
-# Centre grille logique: (3.75, 3.5). Centre viewport: (512, 512)
-const BOARD_ORIGIN := Vector2(512 - 3.75 * 55.0, 512 - 3.5 * 55.0)
+# Pour SubViewport 1024x1024: centrer la grille sur GRID_CENTER=(4.0, 3.5)
+# Le pixel (512, 512) correspond à la position 3D (0,0,0) = grille (4.0, 3.5)
+const BOARD_ORIGIN := Vector2(512 - 4.0 * 55.0 - 27.5, 512 - 3.5 * 55.0 - 27.5)  # (264.5, 292.0)
 const CORNER_RADIUS := 6.0
 
 # Palette

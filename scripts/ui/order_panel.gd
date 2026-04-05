@@ -21,6 +21,7 @@ var _missile_create_sector: String = ""
 var _missile_selected_units: Dictionary = {}  # UnitType -> count
 var _missile_available_units: Dictionary = {}  # UnitType -> max available count
 var _missile_total_power: int = 0
+var _pending_missile_sectors: Array[String] = []  # Secteurs où des missiles seront créés ce tour
 
 # Noeuds UI créés dynamiquement
 var _title_label: Label
@@ -137,6 +138,7 @@ func activate(player_color: GameEnums.PlayerColor) -> void:
 	_missile_selected_units.clear()
 	_missile_available_units.clear()
 	_missile_total_power = 0
+	_pending_missile_sectors.clear()
 	visible = true
 
 	var color_name := _get_color_name(player_color)
@@ -196,6 +198,11 @@ func _try_select_unit(sector_id: String) -> void:
 		if unit.owner == current_player and unit.unit_type != GameEnums.UnitType.FLAG:
 			if unit.get_max_move() > 0 or unit.unit_type == GameEnums.UnitType.MEGA_MISSILE:
 				available_units.append(unit)
+
+	# Ajouter les missiles en attente de création (pas encore sur le plateau)
+	if sector_id in _pending_missile_sectors:
+		var virtual_missile := UnitData.new(GameEnums.UnitType.MEGA_MISSILE, current_player, sector_id)
+		available_units.append(virtual_missile)
 
 	if available_units.is_empty():
 		_instruction_label.text = "Pas d'unité déplaçable ici. Sélectionnez une de vos unités."
@@ -634,6 +641,7 @@ func _on_missile_create_confirm() -> void:
 	var order := Order.create_missile_exchange(
 		current_player, sacrificed, _missile_create_sector)
 	pending_orders.append(order)
+	_pending_missile_sectors.append(_missile_create_sector)
 
 	_instruction_label.text = "Méga-Missile créé en %s! (puissance sacrifiée: %d)" % [
 		_missile_create_sector, _missile_total_power]

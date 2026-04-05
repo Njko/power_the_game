@@ -77,6 +77,14 @@ func play_explosion(sector_id: String) -> void:
 		"sector": sector_id,
 	})
 
+func play_missile_strike(owner: GameEnums.PlayerColor, from_sector: String, to_sector: String) -> void:
+	_animation_queue.append({
+		"type": "missile_strike",
+		"owner": owner,
+		"from": from_sector,
+		"to": to_sector,
+	})
+
 func play_flag_capture(capturer: GameEnums.PlayerColor, captured: GameEnums.PlayerColor) -> void:
 	_animation_queue.append({
 		"type": "flag",
@@ -137,6 +145,8 @@ func _play_next() -> void:
 			_animate_capture(anim)
 		"explosion":
 			_animate_explosion(anim)
+		"missile_strike":
+			_animate_missile_strike(anim)
 		"flag":
 			_animate_flag_capture(anim)
 		"phase_title":
@@ -269,6 +279,31 @@ func _animate_explosion(anim: Dictionary) -> void:
 		explosion.queue_free()
 		_active_tweens.erase(tween)
 		_play_next()
+	)
+
+func _animate_missile_strike(anim: Dictionary) -> void:
+	if board_renderer == null:
+		_play_next()
+		return
+
+	var from_pos: Vector2 = board_renderer.get_sector_position(anim["from"])
+	var to_pos: Vector2 = board_renderer.get_sector_position(anim["to"])
+	var color: Color = GameEnums.get_player_color(anim["owner"])
+
+	# Phase 1: missile vole vers la cible
+	var token: Node2D = _create_unit_token("M", color, from_pos)
+
+	var fly_duration: float = 0.5 / speed_multiplier
+	var tween := create_tween()
+	_active_tweens.append(tween)
+
+	tween.tween_property(token, "position", to_pos, fly_duration) \
+		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	tween.tween_callback(func():
+		token.queue_free()
+		_active_tweens.erase(tween)
+		# Phase 2: explosion sur la cible
+		_animate_explosion({"sector": anim["to"]})
 	)
 
 func _animate_flag_capture(anim: Dictionary) -> void:

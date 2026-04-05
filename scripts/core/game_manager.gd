@@ -340,9 +340,9 @@ func _execute_launch_order(order: Order, player: PlayerData) -> bool:
 	resolution_log.emit("  MÉGA-MISSILE: %s → %s (%d unités détruites!)" % [
 		order.from_sector, order.to_sector, destroyed_count])
 
-	# Animation d'explosion
+	# Animation de frappe missile
 	if anim_manager:
-		anim_manager.play_explosion(order.to_sector)
+		anim_manager.play_missile_strike(player.color, order.from_sector, order.to_sector)
 
 	return true
 

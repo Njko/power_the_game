@@ -26,6 +26,12 @@ func generate_orders() -> Array[Order]:
 	# Priorité 1: Échanges (monter en puissance)
 	_try_exchanges(orders)
 
+	# Priorité 1b: Lancer les méga-missiles existants
+	_try_launch_missiles(orders, my_units, moved_units)
+
+	# Priorité 1c: Créer un méga-missile si puissance suffisante
+	_try_create_missile(orders)
+
 	# Priorité 2: Déployer depuis la réserve
 	_try_deploy_reserve(orders)
 
@@ -95,6 +101,96 @@ func _try_upgrade_on_board(orders: Array[Order]) -> void:
 				orders.append(order)
 				counts[unit_type] -= 3
 
+func _try_launch_missiles(orders: Array[Order], my_units: Array, moved: Array[UnitData]) -> void:
+	if orders.size() >= 5:
+		return
+
+	# Trouver mes méga-missiles sur le plateau
+	for unit in my_units:
+		if orders.size() >= 5:
+			break
+		if unit.unit_type != GameEnums.UnitType.MEGA_MISSILE:
+			continue
+		if unit in moved:
+			continue
+
+		# Trouver la meilleure cible
+		var best_target := ""
+		var best_score := 0
+
+		for sector_id in game_state.board.sectors:
+			var sector: Sector = game_state.board.get_sector(sector_id)
+			if sector == null:
+				continue
+
+			# Ne pas cibler ses propres unités seules
+			var has_enemy := false
+			var has_own := false
+			var enemy_power := 0
+			for u in sector.units:
+				if u.unit_type == GameEnums.UnitType.FLAG:
+					continue
+				if u.owner == color:
+					has_own = true
+				else:
+					has_enemy = true
+					enemy_power += GameEnums.get_unit_power(u.unit_type)
+
+			if not has_enemy or has_own:
+				continue
+
+			# Score basé sur la puissance ennemie détruite
+			var score := enemy_power
+
+			# Bonus pour les QG ennemis
+			if sector.sector_type == GameEnums.SectorType.HQ and sector.owner_territory != color:
+				score += 20
+
+			if score > best_score:
+				best_score = score
+				best_target = sector_id
+
+		# Ne lancer que si on détruit au moins 30 de puissance
+		if best_target != "" and best_score >= 30:
+			var order := Order.create_launch(color, unit.sector_id, best_target)
+			orders.append(order)
+			moved.append(unit)
+
+func _try_create_missile(orders: Array[Order]) -> void:
+	if orders.size() >= 4:  # Garder des slots pour d'autres ordres
+		return
+
+	# Chercher un secteur avec assez de puissance pour créer un missile
+	for sector_id in game_state.board.sectors:
+		if orders.size() >= 4:
+			break
+
+		var sector: Sector = game_state.board.get_sector(sector_id)
+		if sector == null:
+			continue
+
+		var my_units_here: Dictionary = {}  # UnitType -> count
+		var total_power := 0
+		for unit in sector.units:
+			if unit.owner == color and unit.unit_type != GameEnums.UnitType.FLAG and unit.unit_type != GameEnums.UnitType.MEGA_MISSILE:
+				var ut: GameEnums.UnitType = unit.unit_type
+				if ut not in my_units_here:
+					my_units_here[ut] = 0
+				my_units_here[ut] += 1
+				total_power += GameEnums.get_unit_power(ut)
+
+		# Ne créer un missile que si on a largement plus de 100
+		if total_power < 120:
+			continue
+
+		# Construire la liste de sacrifice
+		var sacrificed: Array = []
+		for ut in my_units_here:
+			sacrificed.append({"type": ut, "count": my_units_here[ut]})
+
+		var order := Order.create_missile_exchange(color, sacrificed, sector_id)
+		orders.append(order)
+
 # ===== DÉPLOIEMENT RÉSERVE =====
 
 func _try_deploy_reserve(orders: Array[Order]) -> void:
@@ -110,8 +206,6 @@ func _try_deploy_reserve(orders: Array[Order]) -> void:
 			break
 		if unit.unit_type == GameEnums.UnitType.POWER or unit.unit_type == GameEnums.UnitType.FLAG:
 			continue
-		if unit.unit_type == GameEnums.UnitType.MEGA_MISSILE:
-			continue  # On gère les missiles séparément
 
 		var order := Order.create_move(color, unit.unit_type, "RV", hq_id)
 		orders.append(order)

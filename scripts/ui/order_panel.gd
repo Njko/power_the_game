@@ -73,7 +73,7 @@ func _build_ui() -> void:
 	vbox.add_child(orders_title)
 
 	_order_list = VBoxContainer.new()
-	_order_list.add_theme_constant_override("separation", 2)
+	_order_list.add_theme_constant_override("separation", 6)
 	vbox.add_child(_order_list)
 
 	# Boutons
@@ -81,34 +81,23 @@ func _build_ui() -> void:
 	btn_box.add_theme_constant_override("separation", 4)
 	vbox.add_child(btn_box)
 
-	_exchange_button = Button.new()
-	_exchange_button.text = "Mode Échange"
-	_exchange_button.pressed.connect(_on_exchange_pressed)
+	_exchange_button = _create_styled_button("Mode Échange", _on_exchange_pressed)
 	btn_box.add_child(_exchange_button)
 
-	var _missile_button := Button.new()
-	_missile_button.text = "Créer Méga-Missile"
+	var _missile_button := _create_styled_button("Créer Méga-Missile", _on_missile_create_pressed)
 	_missile_button.name = "MissileButton"
-	_missile_button.pressed.connect(_on_missile_create_pressed)
 	btn_box.add_child(_missile_button)
 
-	_reserve_button = Button.new()
-	_reserve_button.text = "Depuis la Réserve"
-	_reserve_button.pressed.connect(_on_reserve_pressed)
+	_reserve_button = _create_styled_button("Depuis la Réserve", _on_reserve_pressed)
 	btn_box.add_child(_reserve_button)
 
-	_cancel_button = Button.new()
-	_cancel_button.text = "Annuler dernier ordre"
-	_cancel_button.pressed.connect(_on_cancel_pressed)
+	_cancel_button = _create_styled_button("Annuler dernier ordre", _on_cancel_pressed)
 	btn_box.add_child(_cancel_button)
 
 	var sep2 := HSeparator.new()
 	btn_box.add_child(sep2)
 
-	_confirm_button = Button.new()
-	_confirm_button.text = "Valider mes ordres"
-	_confirm_button.add_theme_font_size_override("font_size", 16)
-	_confirm_button.pressed.connect(_on_confirm_pressed)
+	_confirm_button = _create_styled_button("Valider mes ordres", _on_confirm_pressed, true)
 	btn_box.add_child(_confirm_button)
 
 	# Séparateur avant réserve
@@ -124,7 +113,7 @@ func _build_ui() -> void:
 	_reserve_display = Label.new()
 	_reserve_display.autowrap_mode = TextServer.AUTOWRAP_WORD
 	_reserve_display.add_theme_font_size_override("font_size", 11)
-	_reserve_display.add_theme_color_override("font_color", Color(0.8, 0.8, 0.6))
+	_reserve_display.add_theme_color_override("font_color", Color(0.80, 0.80, 0.88))
 	vbox.add_child(_reserve_display)
 
 func activate(player_color: GameEnums.PlayerColor) -> void:
@@ -160,9 +149,11 @@ func update_timer(seconds: float) -> void:
 	var secs := int(seconds) % 60
 	_timer_label.text = "%d:%02d" % [minutes, secs]
 
-	# Rouge si < 30 secondes
+	# Transition douce vers rouge
 	if seconds < 30:
-		_timer_label.add_theme_color_override("font_color", Color.RED)
+		var urgency := 1.0 - (seconds / 30.0)
+		var timer_color := Color(0.95, 0.95, 1.0).lerp(Color(1.0, 0.3, 0.2), urgency)
+		_timer_label.add_theme_color_override("font_color", timer_color)
 	else:
 		_timer_label.remove_theme_color_override("font_color")
 
@@ -393,9 +384,9 @@ func _refresh_order_list() -> void:
 	# Slots vides
 	for i in range(pending_orders.size(), MAX_ORDERS):
 		var label := Label.new()
-		label.text = "%d. ---" % [i + 1]
+		label.text = "%d. …" % [i + 1]
 		label.add_theme_font_size_override("font_size", 12)
-		label.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
+		label.add_theme_color_override("font_color", Color(0.55, 0.55, 0.65))
 		_order_list.add_child(label)
 
 	# Mettre à jour le titre des ordres
@@ -672,6 +663,44 @@ func _cancel_missile_create() -> void:
 	_missile_available_units.clear()
 	_missile_total_power = 0
 	_refresh_order_list()
+
+func _create_styled_button(text: String, callback: Callable, is_primary: bool = false) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.pressed.connect(callback)
+	if is_primary:
+		btn.add_theme_font_size_override("font_size", 16)
+	else:
+		btn.add_theme_font_size_override("font_size", 13)
+
+	var style := StyleBoxFlat.new()
+	if is_primary:
+		style.bg_color = Color(0.8, 0.6, 0.15).darkened(0.3)
+		style.border_color = Color(1.0, 0.75, 0.2)
+	else:
+		style.bg_color = Color(0.12, 0.15, 0.25)
+		style.border_color = Color(0.35, 0.40, 0.55, 0.6)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	style.set_content_margin_all(6)
+	btn.add_theme_stylebox_override("normal", style)
+
+	var hover := style.duplicate()
+	if is_primary:
+		hover.bg_color = Color(0.8, 0.6, 0.15).darkened(0.1)
+		hover.border_color = Color(1.0, 0.85, 0.4)
+	else:
+		hover.bg_color = Color(0.15, 0.18, 0.30)
+		hover.border_color = Color(0.45, 0.50, 0.65)
+	btn.add_theme_stylebox_override("hover", hover)
+
+	var pressed := style.duplicate()
+	pressed.bg_color = style.bg_color.darkened(0.2)
+	btn.add_theme_stylebox_override("pressed", pressed)
+
+	btn.add_theme_color_override("font_color", Color(0.95, 0.95, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(1, 1, 0.9))
+	return btn
 
 func _get_color_name(color: GameEnums.PlayerColor) -> String:
 	match color:

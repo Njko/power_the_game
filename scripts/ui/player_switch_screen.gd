@@ -25,7 +25,7 @@ func _ready() -> void:
 
 	# Icône
 	var icon := Label.new()
-	icon.text = "⚔"
+	icon.text = "⬥"
 	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	icon.add_theme_font_size_override("font_size", 48)
 	vbox.add_child(icon)
@@ -39,7 +39,7 @@ func _ready() -> void:
 	_sub_label.text = "Programmez vos 5 ordres avant la fin du sablier!"
 	_sub_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_sub_label.add_theme_font_size_override("font_size", 14)
-	_sub_label.add_theme_color_override("font_color", Color(0.6, 0.6, 0.7))
+	_sub_label.add_theme_color_override("font_color", Color(0.80, 0.80, 0.88))
 	vbox.add_child(_sub_label)
 
 	var spacer := Control.new()
@@ -54,19 +54,25 @@ func _ready() -> void:
 
 	# Style du bouton
 	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.2, 0.5, 0.3)
-	style.border_color = Color(0.3, 0.7, 0.4)
+	style.bg_color = Color(0.8, 0.6, 0.15).darkened(0.3)
+	style.border_color = Color(1.0, 0.75, 0.2)
 	style.set_border_width_all(2)
 	style.set_corner_radius_all(8)
 	style.set_content_margin_all(10)
 	_button.add_theme_stylebox_override("normal", style)
 
 	var hover := style.duplicate()
-	hover.bg_color = Color(0.25, 0.6, 0.35)
+	hover.bg_color = Color(0.8, 0.6, 0.15).darkened(0.1)
+	hover.border_color = Color(1.0, 0.85, 0.4)
 	_button.add_theme_stylebox_override("hover", hover)
 
+	var pressed := style.duplicate()
+	pressed.bg_color = Color(0.8, 0.6, 0.15).darkened(0.5)
+	_button.add_theme_stylebox_override("pressed", pressed)
+
 	_button.add_theme_font_size_override("font_size", 18)
-	_button.add_theme_color_override("font_color", Color.WHITE)
+	_button.add_theme_color_override("font_color", Color(0.95, 0.95, 1.0))
+	_button.add_theme_color_override("font_hover_color", Color(1, 1, 0.9))
 
 func show_for_player(player_color: GameEnums.PlayerColor) -> void:
 	var color_name := _get_color_name(player_color)

@@ -35,6 +35,25 @@ static func create_exchange(p_player: GameEnums.PlayerColor, p_units: Array, p_r
 	order.exchange_location = p_location
 	return order
 
+static func create_launch(p_player: GameEnums.PlayerColor, p_from: String, p_to: String) -> Order:
+	var order = Order.new()
+	order.order_type = GameEnums.OrderType.LAUNCH
+	order.player = p_player
+	order.unit_type = GameEnums.UnitType.MEGA_MISSILE
+	order.from_sector = p_from
+	order.to_sector = p_to
+	return order
+
+static func create_missile_exchange(p_player: GameEnums.PlayerColor, p_sacrificed: Array, p_location: String) -> Order:
+	var order = Order.new()
+	order.order_type = GameEnums.OrderType.EXCHANGE
+	order.player = p_player
+	order.exchange_units = p_sacrificed
+	order.exchange_result = GameEnums.UnitType.MEGA_MISSILE
+	order.exchange_location = p_location
+	order.unit_type = GameEnums.UnitType.MEGA_MISSILE  # marker for description
+	return order
+
 func get_description() -> String:
 	if order_type == GameEnums.OrderType.MOVE:
 		return "%s: %s → %s" % [
@@ -42,7 +61,11 @@ func get_description() -> String:
 			from_sector,
 			to_sector
 		]
+	elif order_type == GameEnums.OrderType.LAUNCH:
+		return "Méga-Missile: %s → %s" % [from_sector, to_sector]
 	else:
+		if exchange_result == GameEnums.UnitType.MEGA_MISSILE:
+			return "Création Méga-Missile (%s)" % exchange_location
 		return "Échange → %s (%s)" % [
 			GameEnums.get_unit_name(exchange_result),
 			exchange_location

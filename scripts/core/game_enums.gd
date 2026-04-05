@@ -33,7 +33,8 @@ enum SectorType {
 
 enum OrderType {
 	MOVE,
-	EXCHANGE
+	EXCHANGE,
+	LAUNCH
 }
 
 enum GamePhase {

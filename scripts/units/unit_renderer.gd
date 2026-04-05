@@ -5,6 +5,7 @@ class_name UnitRenderer
 ## Chaque type d'unité a une forme unique, colorée selon le joueur.
 
 var board_renderer: BoardRenderer
+var board_3d: Board3D
 var game_state: GameState
 
 const ICON_SIZE := 8.0       # Rayon de base des icônes
@@ -14,72 +15,91 @@ const MAX_PER_ROW := 3       # Max icônes par ligne dans un secteur
 func update_display() -> void:
 	queue_redraw()
 
+func _process(_delta: float) -> void:
+	if board_3d != null and game_state != null:
+		queue_redraw()
+
 func _draw() -> void:
-	if game_state == null or board_renderer == null:
+	if game_state == null:
 		return
 
-	for sector_id in board_renderer.sector_positions:
+	var position_source_3d := board_3d != null
+	var positions: Dictionary = {}
+
+	if position_source_3d:
+		for sector_id in board_3d._grid_positions:
+			positions[sector_id] = board_3d.get_sector_screen_position(sector_id)
+	elif board_renderer != null:
+		positions = board_renderer.sector_positions
+
+	for sector_id in positions:
 		var sector: Sector = game_state.board.get_sector(sector_id)
 		if sector == null or sector.units.is_empty():
 			continue
-		var base_pos: Vector2 = board_renderer.sector_positions[sector_id]
-		_draw_units_at_sector(sector.units, base_pos)
+		var base_pos: Vector2 = positions[sector_id]
 
-func _draw_units_at_sector(units: Array, base_pos: Vector2) -> void:
+		var scale_factor := 1.0
+		if position_source_3d:
+			scale_factor = board_3d.get_sector_screen_scale(sector_id)
+
+		_draw_units_at_sector(sector.units, base_pos, scale_factor)
+
+func _draw_units_at_sector(units: Array, base_pos: Vector2, scale_factor: float = 1.0) -> void:
 	# Disposer les icônes en grille dans le secteur
 	var count := units.size()
 	if count == 0:
 		return
 
 	# Calculer la disposition
+	var spacing := ICON_SPACING * scale_factor
 	var cols: int = mini(count, MAX_PER_ROW)
 	var rows: int = ceili(float(count) / cols)
-	var start_x: float = -(cols - 1) * ICON_SPACING * 0.5
-	var start_y: float = -(rows - 1) * ICON_SPACING * 0.5
+	var start_x: float = -(cols - 1) * spacing * 0.5
+	var start_y: float = -(rows - 1) * spacing * 0.5
 
 	for i in range(count):
 		var unit: UnitData = units[i]
 		var col: int = i % cols
 		var row: int = i / cols
-		var offset := Vector2(start_x + col * ICON_SPACING, start_y + row * ICON_SPACING)
+		var offset := Vector2(start_x + col * spacing, start_y + row * spacing)
 		var pos := base_pos + offset
 		var color: Color = GameEnums.get_player_color(unit.owner)
 
-		_draw_unit_icon(pos, unit.unit_type, color, unit.owner)
+		_draw_unit_icon(pos, unit.unit_type, color, unit.owner, scale_factor)
 
-func _draw_unit_icon(pos: Vector2, unit_type: GameEnums.UnitType, color: Color, owner: GameEnums.PlayerColor) -> void:
+func _draw_unit_icon(pos: Vector2, unit_type: GameEnums.UnitType, color: Color, owner: GameEnums.PlayerColor, sf: float = 1.0) -> void:
 	# Ombre
-	var shadow_offset := Vector2(1, 1)
+	var shadow_offset := Vector2(1, 1) * sf
 
 	match unit_type:
 		GameEnums.UnitType.SOLDIER:
-			_draw_soldier(pos, color, shadow_offset, false)
+			_draw_soldier(pos, color, shadow_offset, false, sf)
 		GameEnums.UnitType.REGIMENT:
-			_draw_soldier(pos, color, shadow_offset, true)
+			_draw_soldier(pos, color, shadow_offset, true, sf)
 		GameEnums.UnitType.TANK:
-			_draw_tank(pos, color, shadow_offset, false)
+			_draw_tank(pos, color, shadow_offset, false, sf)
 		GameEnums.UnitType.HEAVY_TANK:
-			_draw_tank(pos, color, shadow_offset, true)
+			_draw_tank(pos, color, shadow_offset, true, sf)
 		GameEnums.UnitType.FIGHTER:
-			_draw_plane(pos, color, shadow_offset, false)
+			_draw_plane(pos, color, shadow_offset, false, sf)
 		GameEnums.UnitType.BOMBER:
-			_draw_plane(pos, color, shadow_offset, true)
+			_draw_plane(pos, color, shadow_offset, true, sf)
 		GameEnums.UnitType.DESTROYER:
-			_draw_ship(pos, color, shadow_offset, false)
+			_draw_ship(pos, color, shadow_offset, false, sf)
 		GameEnums.UnitType.CRUISER:
-			_draw_ship(pos, color, shadow_offset, true)
+			_draw_ship(pos, color, shadow_offset, true, sf)
 		GameEnums.UnitType.FLAG:
-			_draw_flag(pos, color, shadow_offset)
+			_draw_flag(pos, color, shadow_offset, sf)
 		GameEnums.UnitType.POWER:
-			_draw_power(pos, color, shadow_offset)
+			_draw_power(pos, color, shadow_offset, sf)
 		GameEnums.UnitType.MEGA_MISSILE:
-			_draw_missile(pos, color, shadow_offset)
+			_draw_missile(pos, color, shadow_offset, sf)
 
 # ===== SOLDAT / RÉGIMENT =====
 # Cercle (tête) + corps triangulaire
 
-func _draw_soldier(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
-	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+func _draw_soldier(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
 	var dark := color.darkened(0.3)
 
 	# Ombre
@@ -109,8 +129,8 @@ func _draw_soldier(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) ->
 # ===== TANK / CHAR D'ASSAUT =====
 # Rectangle (châssis) + ligne (canon)
 
-func _draw_tank(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
-	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+func _draw_tank(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
 	var dark := color.darkened(0.3)
 
 	# Ombre
@@ -140,8 +160,8 @@ func _draw_tank(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> vo
 # ===== CHASSEUR / BOMBARDIER =====
 # Triangle pointant vers le haut (forme d'avion)
 
-func _draw_plane(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
-	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+func _draw_plane(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
 	var dark := color.darkened(0.3)
 
 	# Ombre
@@ -193,8 +213,8 @@ func _draw_plane(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> v
 # ===== DESTROYER / CROISEUR =====
 # Forme de bateau (losange allongé horizontalement)
 
-func _draw_ship(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> void:
-	var s: float = ICON_SIZE * (1.3 if is_big else 1.0)
+func _draw_ship(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
 	var dark := color.darkened(0.3)
 
 	# Ombre
@@ -235,8 +255,8 @@ func _draw_ship(pos: Vector2, color: Color, shadow: Vector2, is_big: bool) -> vo
 
 # ===== DRAPEAU =====
 
-func _draw_flag(pos: Vector2, color: Color, shadow: Vector2) -> void:
-	var s: float = ICON_SIZE
+func _draw_flag(pos: Vector2, color: Color, shadow: Vector2, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * sf
 
 	# Mât
 	draw_line(pos + shadow + Vector2(0, s * 0.6), pos + shadow + Vector2(0, -s * 0.7),
@@ -257,8 +277,8 @@ func _draw_flag(pos: Vector2, color: Color, shadow: Vector2) -> void:
 
 # ===== POWER (étoile) =====
 
-func _draw_power(pos: Vector2, color: Color, shadow: Vector2) -> void:
-	var s: float = ICON_SIZE * 0.7
+func _draw_power(pos: Vector2, color: Color, shadow: Vector2, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * 0.7 * sf
 	_draw_star(pos + shadow, s, Color(0, 0, 0, 0.3))
 	_draw_star(pos, s, Color(1.0, 0.85, 0.2))  # Toujours doré
 
@@ -272,8 +292,8 @@ func _draw_star(center: Vector2, radius: float, color: Color) -> void:
 
 # ===== MÉGA-MISSILE =====
 
-func _draw_missile(pos: Vector2, color: Color, shadow: Vector2) -> void:
-	var s: float = ICON_SIZE * 1.2
+func _draw_missile(pos: Vector2, color: Color, shadow: Vector2, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * 1.2 * sf
 
 	# Ombre
 	draw_circle(pos + shadow, s * 0.3, Color(0, 0, 0, 0.3))

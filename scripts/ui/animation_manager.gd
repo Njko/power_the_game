@@ -318,7 +318,8 @@ func _animate_flag_capture(anim: Dictionary) -> void:
 	label.add_theme_font_size_override("font_size", 28)
 	label.add_theme_color_override("font_color", color)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.position = Vector2(640, 300)
+	var vp_size := get_viewport().get_visible_rect().size
+	label.position = Vector2(vp_size.x / 2 - 200, vp_size.y / 2 - 30)
 	label.pivot_offset = Vector2(label.size.x / 2, label.size.y / 2)
 	label.modulate.a = 0
 	_screen_overlay.add_child(label)
@@ -343,9 +344,10 @@ func _animate_phase_title(anim: Dictionary) -> void:
 	var label := Label.new()
 	label.text = anim["text"]
 	label.add_theme_font_size_override("font_size", 22)
-	label.add_theme_color_override("font_color", Color(1, 0.9, 0.6))
+	label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.position = Vector2(640, 320)
+	var vp_size := get_viewport().get_visible_rect().size
+	label.position = Vector2(vp_size.x / 2 - 100, vp_size.y / 2)
 	label.modulate.a = 0
 	_screen_overlay.add_child(label)
 
@@ -354,7 +356,7 @@ func _animate_phase_title(anim: Dictionary) -> void:
 	_active_tweens.append(tween)
 
 	tween.tween_property(label, "modulate:a", 1.0, duration * 0.3)
-	tween.tween_property(label, "position:y", 300, duration * 0.3) \
+	tween.tween_property(label, "position:y", vp_size.y / 2 - 20, duration * 0.3) \
 		.set_ease(Tween.EASE_OUT)
 	tween.tween_interval(duration * 0.4)
 	tween.tween_property(label, "modulate:a", 0.0, duration * 0.3)
@@ -373,10 +375,15 @@ func _create_unit_token(abbr: String, color: Color, pos: Vector2) -> Node2D:
 	_world_overlay.add_child(token)
 
 	# Fond arrondi
-	var bg := ColorRect.new()
-	bg.color = color.darkened(0.2)
+	var bg := Panel.new()
 	bg.size = Vector2(30, 20)
 	bg.position = Vector2(-15, -10)
+	var style := StyleBoxFlat.new()
+	style.bg_color = color.darkened(0.2)
+	style.border_color = Color(1, 1, 1, 0.5)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(3)
+	bg.add_theme_stylebox_override("panel", style)
 	token.add_child(bg)
 
 	# Texte
@@ -444,8 +451,8 @@ func _create_explosion_effect(pos: Vector2) -> Node2D:
 	# Centre lumineux
 	var core := ColorRect.new()
 	core.color = Color(1, 0.9, 0.3, 0.9)
-	core.size = Vector2(20, 20)
-	core.position = Vector2(-10, -10)
+	core.size = Vector2(30, 30)
+	core.position = Vector2(-15, -15)
 	explosion.add_child(core)
 
 	# Symbole

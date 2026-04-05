@@ -24,7 +24,7 @@ const ZOOM_SPEED := 0.5
 var _is_orbiting := false
 
 func _ready() -> void:
-	_update_camera_position()
+	pass
 
 func _unhandled_input(event: InputEvent) -> void:
 	if camera == null:

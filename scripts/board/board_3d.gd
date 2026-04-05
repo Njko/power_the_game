@@ -98,13 +98,17 @@ func get_sector_screen_position(sector_id: String) -> Vector2:
 		return Vector2.ZERO
 	var grid_pos: Vector2 = _grid_positions[sector_id]
 	var world_pos := grid_to_3d(grid_pos)
-	if camera == null:
+	if camera == null or not camera.is_inside_tree():
+		return Vector2.ZERO
+	if not camera.is_current():
 		return Vector2.ZERO
 	return camera.unproject_position(world_pos)
 
 func get_sector_screen_scale(sector_id: String) -> float:
 	## Retourne un facteur d'échelle basé sur la distance caméra (pour les sprites).
 	if sector_id not in _grid_positions or camera == null:
+		return 1.0
+	if not camera.is_inside_tree() or not camera.is_current():
 		return 1.0
 	var grid_pos: Vector2 = _grid_positions[sector_id]
 	var world_pos := grid_to_3d(grid_pos)
@@ -117,6 +121,8 @@ func get_sector_screen_scale(sector_id: String) -> float:
 func screen_to_board_sector(screen_pos: Vector2) -> String:
 	## Raycast depuis la caméra vers le plan Y=0, retourne le sector_id le plus proche.
 	if camera == null:
+		return ""
+	if not camera.is_inside_tree() or not camera.is_current():
 		return ""
 	var ray_origin := camera.project_ray_origin(screen_pos)
 	var ray_dir := camera.project_ray_normal(screen_pos)

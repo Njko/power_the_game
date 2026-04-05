@@ -16,8 +16,9 @@ func update_display() -> void:
 	queue_redraw()
 
 func _process(_delta: float) -> void:
-	if board_3d != null and game_state != null:
-		queue_redraw()
+	if board_3d != null and game_state != null and board_3d.camera != null:
+		if board_3d.camera.is_inside_tree() and board_3d.camera.is_current():
+			queue_redraw()
 
 func _draw() -> void:
 	if game_state == null:

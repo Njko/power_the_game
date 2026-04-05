@@ -36,6 +36,7 @@ func _ready() -> void:
 
 	# Connecter la caméra
 	camera_controller.camera = board_3d.camera
+	camera_controller._update_camera_position()
 
 	# Afficher l'écran titre
 	var title := preload("res://scripts/ui/title_screen.gd").new()

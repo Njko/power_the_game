@@ -10,10 +10,10 @@
 
 [sub_resource type="StyleBoxFlat" id="topbar_style"]
 bg_color = Color(0.08, 0.1, 0.18, 0.92)
-border_color = Color(0.3, 0.35, 0.5, 0.4)
+border_color = Color(0.35, 0.4, 0.55, 0.6)
 border_width_bottom = 1
-corner_radius_bottom_left = 4
-corner_radius_bottom_right = 4
+corner_radius_bottom_left = 6
+corner_radius_bottom_right = 6
 content_margin_left = 16.0
 content_margin_top = 6.0
 content_margin_right = 16.0
@@ -21,10 +21,10 @@ content_margin_bottom = 6.0
 
 [sub_resource type="StyleBoxFlat" id="bottombar_style"]
 bg_color = Color(0.08, 0.1, 0.18, 0.92)
-border_color = Color(0.3, 0.35, 0.5, 0.4)
+border_color = Color(0.35, 0.4, 0.55, 0.6)
 border_width_top = 1
-corner_radius_top_left = 4
-corner_radius_top_right = 4
+corner_radius_top_left = 6
+corner_radius_top_right = 6
 content_margin_left = 12.0
 content_margin_top = 6.0
 content_margin_right = 12.0
@@ -32,7 +32,7 @@ content_margin_bottom = 6.0
 
 [sub_resource type="StyleBoxFlat" id="resolution_style"]
 bg_color = Color(0.06, 0.08, 0.15, 0.95)
-border_color = Color(0.35, 0.4, 0.6, 0.5)
+border_color = Color(0.35, 0.4, 0.55, 0.6)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -48,7 +48,7 @@ content_margin_bottom = 8.0
 
 [sub_resource type="StyleBoxFlat" id="orderpanel_style"]
 bg_color = Color(0.07, 0.09, 0.16, 0.95)
-border_color = Color(0.35, 0.4, 0.55, 0.5)
+border_color = Color(0.35, 0.4, 0.55, 0.6)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -108,7 +108,7 @@ text = "Manche 0"
 [node name="PhaseLabel" type="Label" parent="GameUI/TopBar/HBox"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(1, 0.85, 0.4, 1)
+theme_override_colors/font_color = Color(1, 0.75, 0.2, 1)
 theme_override_font_sizes/font_size = 15
 text = "POWER"
 horizontal_alignment = 1
@@ -136,13 +136,13 @@ layout_mode = 2
 
 [node name="InfoLabel" type="Label" parent="GameUI/BottomBar/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.85, 0.85, 0.9, 1)
+theme_override_colors/font_color = Color(0.95, 0.95, 1, 1)
 theme_override_font_sizes/font_size = 13
 text = "Bienvenue dans Power!"
 
 [node name="SectorInfo" type="Label" parent="GameUI/BottomBar/VBox"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.6, 0.62, 0.72, 1)
+theme_override_colors/font_color = Color(0.8, 0.8, 0.88, 1)
 theme_override_font_sizes/font_size = 12
 text = "Cliquez sur un secteur pour voir les détails."
 

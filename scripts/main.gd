@@ -3,11 +3,14 @@ extends Node
 ## Scène racine du jeu Power.
 ## Orchestre les composants: plateau, unités, game manager, UI, ordres.
 
-@onready var board_renderer: BoardRenderer = $GameBoard/BoardRenderer
-@onready var unit_renderer: UnitRenderer = $GameBoard/UnitRenderer
+@onready var board_3d: Board3D = $Board3D
+@onready var unit_renderer: UnitRenderer = $UnitOverlay/UnitRenderer
 @onready var game_manager: Node = $GameManager
 @onready var order_panel: OrderPanel = $GameUI/OrderPanel
-@onready var anim_manager: AnimationManager = $GameBoard/AnimationManager
+@onready var anim_manager: AnimationManager = $AnimOverlay/AnimationManager
+@onready var camera_controller: CameraController = $Board3D/CameraController
+
+var board_renderer: BoardRenderer
 
 # UI
 @onready var phase_label: Label = $GameUI/TopBar/HBox/PhaseLabel
@@ -23,8 +26,16 @@ var _game_started := false
 
 func _ready() -> void:
 	# Cacher les éléments de jeu pendant l'écran titre
-	$GameBoard.visible = false
+	$Board3D.visible = false
+	$UnitOverlay.visible = false
+	$AnimOverlay.visible = false
 	$GameUI.visible = false
+
+	# Récupérer le board_renderer créé dynamiquement par Board3D
+	board_renderer = board_3d.board_renderer
+
+	# Connecter la caméra
+	camera_controller.camera = board_3d.camera
 
 	# Afficher l'écran titre
 	var title := preload("res://scripts/ui/title_screen.gd").new()
@@ -33,12 +44,14 @@ func _ready() -> void:
 
 func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerColor, is_solo: bool) -> void:
 	# Montrer les éléments de jeu
-	$GameBoard.visible = true
+	$Board3D.visible = true
+	$UnitOverlay.visible = true
+	$AnimOverlay.visible = true
 	$GameUI.visible = true
 
 	# Connecter les signaux du plateau
-	board_renderer.sector_clicked.connect(_on_sector_clicked)
-	board_renderer.sector_hovered.connect(_on_sector_hovered)
+	board_3d.sector_clicked.connect(_on_sector_clicked)
+	board_3d.sector_hovered.connect(_on_sector_hovered)
 
 	# Connecter les signaux du game manager
 	game_manager.phase_changed.connect(_on_phase_changed)
@@ -63,6 +76,8 @@ func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerCol
 	if anim_manager:
 		anim_manager.board_renderer = board_renderer
 
+	board_3d.board_data = game_manager.game_state.board
+
 	# Démarrer la partie
 	if is_solo:
 		game_manager.start_game(num_players, human_color)
@@ -75,6 +90,7 @@ func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerCol
 	# Connecter l'état du jeu au panneau d'ordres
 	order_panel.game_state = game_manager.game_state
 	order_panel.board_renderer = board_renderer
+	unit_renderer.board_3d = board_3d
 
 func _on_sector_clicked(sector_id: String) -> void:
 	var sector: Sector = game_manager.game_state.board.get_sector(sector_id)

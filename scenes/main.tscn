@@ -1,11 +1,12 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
-[ext_resource type="Script" path="res://scripts/board/board_renderer.gd" id="2"]
-[ext_resource type="Script" path="res://scripts/units/unit_renderer.gd" id="3"]
-[ext_resource type="Script" path="res://scripts/core/game_manager.gd" id="4"]
-[ext_resource type="Script" path="res://scripts/ui/order_panel.gd" id="5"]
-[ext_resource type="Script" path="res://scripts/ui/animation_manager.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/board/board_3d.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/board/camera_controller.gd" id="3"]
+[ext_resource type="Script" path="res://scripts/units/unit_renderer.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/core/game_manager.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/ui/order_panel.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/ui/animation_manager.gd" id="7"]
 
 [sub_resource type="StyleBoxFlat" id="topbar_style"]
 bg_color = Color(0.08, 0.1, 0.18, 0.92)
@@ -64,20 +65,26 @@ content_margin_bottom = 8.0
 [node name="Main" type="Node"]
 script = ExtResource("1")
 
-[node name="GameBoard" type="Node2D" parent="."]
-
-[node name="BoardRenderer" type="Node2D" parent="GameBoard"]
+[node name="Board3D" type="Node3D" parent="."]
 script = ExtResource("2")
 
-[node name="UnitRenderer" type="Node2D" parent="GameBoard"]
+[node name="CameraController" type="Node" parent="Board3D"]
 script = ExtResource("3")
 
-[node name="AnimationManager" type="Node2D" parent="GameBoard"]
-z_index = 100
-script = ExtResource("6")
+[node name="UnitOverlay" type="CanvasLayer" parent="."]
+layer = 5
+
+[node name="UnitRenderer" type="Node2D" parent="UnitOverlay"]
+script = ExtResource("4")
+
+[node name="AnimOverlay" type="CanvasLayer" parent="."]
+layer = 10
+
+[node name="AnimationManager" type="Node2D" parent="AnimOverlay"]
+script = ExtResource("7")
 
 [node name="GameManager" type="Node" parent="."]
-script = ExtResource("4")
+script = ExtResource("5")
 
 [node name="GameUI" type="CanvasLayer" parent="."]
 
@@ -182,4 +189,4 @@ offset_bottom = 560.0
 grow_horizontal = 0
 visible = false
 theme_override_styles/panel = SubResource("orderpanel_style")
-script = ExtResource("5")
+script = ExtResource("6")

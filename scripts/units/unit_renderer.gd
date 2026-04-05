@@ -8,8 +8,8 @@ var board_renderer: BoardRenderer
 var board_3d  # Board3D — set by main.gd
 var game_state: GameState
 
-const ICON_SIZE := 8.0       # Rayon de base des icônes
-const ICON_SPACING := 18.0   # Espace entre icônes dans un secteur
+const ICON_SIZE := 14.0      # Rayon de base des icônes (agrandi pour la vue 3D)
+const ICON_SPACING := 24.0   # Espace entre icônes dans un secteur
 const MAX_PER_ROW := 3       # Max icônes par ligne dans un secteur
 
 func update_display() -> void:

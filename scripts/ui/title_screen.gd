@@ -5,6 +5,7 @@ extends Control
 signal game_start_requested(num_players: int, human_color: GameEnums.PlayerColor, is_solo: bool)
 
 func _ready() -> void:
+	anchors_preset = Control.PRESET_FULL_RECT
 	_build_ui()
 
 func _build_ui() -> void:

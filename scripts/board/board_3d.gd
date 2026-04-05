@@ -116,8 +116,8 @@ func get_sector_screen_scale(sector_id: String) -> float:
 	var grid_pos: Vector2 = _grid_positions[sector_id]
 	var world_pos := grid_to_3d(grid_pos)
 	var dist := camera.global_position.distance_to(world_pos)
-	# Référence: distance ~8 unités = scale 1.0
-	return clampf(8.0 / dist, 0.3, 2.0)
+	# Référence: distance ~10 unités = scale 1.0. Min 0.5 pour rester lisible.
+	return clampf(10.0 / dist, 0.5, 2.0)
 
 # ===== HIT DETECTION =====
 
@@ -141,9 +141,9 @@ func screen_to_board_sector(screen_pos: Vector2) -> String:
 	# Convertir en coordonnées grille
 	var grid_pos := world_to_grid(hit_point)
 
-	# Trouver le secteur le plus proche (distance < 0.6 cellule)
+	# Trouver le secteur le plus proche (distance < 0.8 cellule pour faciliter le clic)
 	var best_id := ""
-	var best_dist := 0.6
+	var best_dist := 0.8
 	for sector_id in _grid_positions:
 		var sector_grid: Vector2 = _grid_positions[sector_id]
 		var dist := grid_pos.distance_to(sector_grid)

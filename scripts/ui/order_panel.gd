@@ -448,17 +448,34 @@ func _on_confirm_pressed() -> void:
 
 func _on_cancel_pressed() -> void:
 	if pending_orders.size() > 0:
+		var order: Order = pending_orders.back()
+		# Nettoyer le tracking de missiles en attente
+		if order.order_type == GameEnums.OrderType.EXCHANGE and order.exchange_result == GameEnums.UnitType.MEGA_MISSILE:
+			var idx: int = _pending_missile_sectors.find(order.exchange_location)
+			if idx >= 0:
+				_pending_missile_sectors.remove_at(idx)
 		pending_orders.pop_back()
 		_refresh_order_list()
 		_instruction_label.text = "Dernier ordre annulé."
 
 func _on_delete_order(index: int) -> void:
 	if index >= 0 and index < pending_orders.size():
+		var order: Order = pending_orders[index]
+		# Nettoyer le tracking de missiles en attente
+		if order.order_type == GameEnums.OrderType.EXCHANGE and order.exchange_result == GameEnums.UnitType.MEGA_MISSILE:
+			var idx: int = _pending_missile_sectors.find(order.exchange_location)
+			if idx >= 0:
+				_pending_missile_sectors.remove_at(idx)
 		pending_orders.remove_at(index)
 		_refresh_order_list()
 
 func _on_exchange_pressed() -> void:
 	_is_exchange_mode = true
+	_is_missile_create_mode = false
+	_missile_create_sector = ""
+	_missile_selected_units.clear()
+	_missile_available_units.clear()
+	_missile_total_power = 0
 	_deselect()
 	_instruction_label.text = "Mode échange: cliquez sur un secteur avec 3+ unités identiques"
 

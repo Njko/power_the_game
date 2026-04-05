@@ -169,24 +169,41 @@ func _try_create_missile(orders: Array[Order]) -> void:
 		if sector == null:
 			continue
 
-		var my_units_here: Dictionary = {}  # UnitType -> count
-		var total_power := 0
+		# Collecter les unités sacrifiables, triées par puissance croissante
+		var sacrificable: Array = []  # [{type, power, unit}]
+		var total_available := 0
 		for unit in sector.units:
 			if unit.owner == color and unit.unit_type != GameEnums.UnitType.FLAG and unit.unit_type != GameEnums.UnitType.MEGA_MISSILE:
-				var ut: GameEnums.UnitType = unit.unit_type
-				if ut not in my_units_here:
-					my_units_here[ut] = 0
-				my_units_here[ut] += 1
-				total_power += GameEnums.get_unit_power(ut)
+				var power: int = GameEnums.get_unit_power(unit.unit_type)
+				sacrificable.append({"type": unit.unit_type, "power": power})
+				total_available += power
 
-		# Ne créer un missile que si on a largement plus de 100
-		if total_power < 120:
+		# Ne créer que si on a largement plus de 100
+		if total_available < 120:
+			continue
+
+		# Trier par puissance décroissante (sacrifier les plus gros d'abord = moins d'unités perdues)
+		sacrificable.sort_custom(func(a, b): return a["power"] > b["power"])
+
+		# Sélectionner le minimum d'unités pour atteindre 100
+		var selected: Dictionary = {}  # UnitType -> count
+		var selected_power := 0
+		for entry in sacrificable:
+			if selected_power >= 100:
+				break
+			var ut: GameEnums.UnitType = entry["type"]
+			if ut not in selected:
+				selected[ut] = 0
+			selected[ut] += 1
+			selected_power += entry["power"]
+
+		if selected_power < 100:
 			continue
 
 		# Construire la liste de sacrifice
 		var sacrificed: Array = []
-		for ut in my_units_here:
-			sacrificed.append({"type": ut, "count": my_units_here[ut]})
+		for ut in selected:
+			sacrificed.append({"type": ut, "count": selected[ut]})
 
 		var order := Order.create_missile_exchange(color, sacrificed, sector_id)
 		orders.append(order)

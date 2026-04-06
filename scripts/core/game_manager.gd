@@ -237,6 +237,11 @@ func _phase_execution() -> void:
 		if not unit.in_reserve and unit.sector_id != "":
 			unit.set_meta("origin_sector", unit.sector_id)
 
+	# Afficher l'état initial du plateau avant les déplacements
+	if unit_renderer:
+		unit_renderer.update_display()
+
+	# Exécuter les ordres séquentiellement avec animation après chaque ordre
 	var active := game_state.get_active_players()
 	var start_idx: int = game_state.arbiter_index % active.size()
 
@@ -245,13 +250,9 @@ func _phase_execution() -> void:
 		var player_color: GameEnums.PlayerColor = active[player_idx]
 		var player := game_state.get_player(player_color)
 		resolution_log.emit("--- Ordres de %s ---" % _color_name(player_color))
-		_execute_player_orders(player)
+		await _execute_player_orders(player)
 
-	# Jouer les animations de déplacement
-	if anim_manager:
-		anim_manager.play_all()
-		await anim_manager.animation_finished
-
+	# Affichage final après tous les ordres
 	if unit_renderer:
 		unit_renderer.update_display()
 
@@ -266,6 +267,13 @@ func _execute_player_orders(player: PlayerData) -> void:
 		if _validate_and_execute_order(order, player):
 			valid_count += 1
 			resolution_log.emit("  OK: %s" % order.get_description())
+			# Jouer l'animation de cet ordre immédiatement
+			if anim_manager and not anim_manager._animation_queue.is_empty():
+				anim_manager.play_all()
+				await anim_manager.animation_finished
+			# Mettre à jour l'affichage après chaque déplacement
+			if unit_renderer:
+				unit_renderer.update_display()
 		else:
 			resolution_log.emit("  ILLÉGAL: %s" % order.get_description())
 
@@ -506,6 +514,9 @@ func _phase_conflict() -> void:
 		anim_manager.play_all()
 		await anim_manager.animation_finished
 
+	if unit_renderer:
+		unit_renderer.update_display()
+
 	var max_iterations := 20
 	var had_conflicts := true
 
@@ -513,8 +524,11 @@ func _phase_conflict() -> void:
 		had_conflicts = false
 		max_iterations -= 1
 
-		for sector_id in game_state.board.sectors:
+		var sector_ids: Array = game_state.board.sectors.keys()
+		for sector_id in sector_ids:
 			var sector: Sector = game_state.board.get_sector(sector_id)
+			if sector == null:
+				continue
 			var players_present := sector.get_players_present()
 
 			if players_present.size() < 2:
@@ -522,11 +536,12 @@ func _phase_conflict() -> void:
 
 			if _resolve_combat(sector_id, players_present):
 				had_conflicts = true
-
-	# Jouer les animations de combat
-	if anim_manager:
-		anim_manager.play_all()
-		await anim_manager.animation_finished
+				# Jouer l'animation de ce combat/rebond immédiatement
+				if anim_manager and not anim_manager._animation_queue.is_empty():
+					anim_manager.play_all()
+					await anim_manager.animation_finished
+				if unit_renderer:
+					unit_renderer.update_display()
 
 	if unit_renderer:
 		unit_renderer.update_display()

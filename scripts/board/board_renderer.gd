@@ -41,6 +41,7 @@ var hovered_sector: String = ""
 var selected_sector: String = ""
 var highlighted_sectors: Array[String] = []
 var sector_positions: Dictionary = {}
+var debug_adjacency: bool = true  # Afficher les lignes d'adjacence (debug)
 
 func _ready() -> void:
 	board_data = BoardData.new()
@@ -54,11 +55,37 @@ func _calculate_sector_positions() -> void:
 		"R": Vector2(5, 5),
 	}
 
+	# Flip par territoire pour que secteur 0 = coin le plus proche de IX
+	var territory_flips := {
+		"V": [true, true],    # flip_x et flip_y
+		"B": [false, true],   # flip_y seulement
+		"J": [true, false],   # flip_x seulement
+		"R": [false, false],  # aucun flip
+	}
+
+	# Numérotation diagonale: secteur → position locale (col, row)
+	# 0  2  5
+	# 1  4  7
+	# 3  6  8
+	var sector_local := [
+		Vector2(0, 0), Vector2(0, 1), Vector2(1, 0),
+		Vector2(0, 2), Vector2(1, 1), Vector2(2, 0),
+		Vector2(1, 2), Vector2(2, 1), Vector2(2, 2),
+	]
+
 	for prefix in territory_origins:
 		var origin: Vector2 = territory_origins[prefix]
+		var flips: Array = territory_flips[prefix]
+		var flip_x: bool = flips[0]
+		var flip_y: bool = flips[1]
 		for i in range(9):
-			var col := i % 3
-			var row := i / 3
+			var local: Vector2 = sector_local[i]
+			var col: int = int(local.x)
+			var row: int = int(local.y)
+			if flip_x:
+				col = 2 - col
+			if flip_y:
+				row = 2 - row
 			var grid_pos := origin + Vector2(col, row)
 			var pixel_pos := BOARD_ORIGIN + grid_pos * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
 			var sector_id := "%s%d" % [prefix, i]
@@ -74,12 +101,19 @@ func _calculate_sector_positions() -> void:
 		"HQ_J": Vector2(0, 8),
 		"HQ_R": Vector2(8, 8),
 	}
+	var hq_size := CELL_SIZE * 2  # QG 2× plus grand que les autres cases
 	for hq_id in hq_data:
-		var pixel_pos: Vector2 = BOARD_ORIGIN + Vector2(hq_data[hq_id]) * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
+		var grid_pos: Vector2 = hq_data[hq_id]
+		var pixel_pos: Vector2 = BOARD_ORIGIN + grid_pos * CELL_SIZE + Vector2(CELL_SIZE / 2, CELL_SIZE / 2)
 		sector_positions[hq_id] = pixel_pos
-		sector_rects[hq_id] = Rect2(
-			pixel_pos - Vector2(CELL_SIZE / 2, CELL_SIZE / 2),
-			Vector2(CELL_SIZE, CELL_SIZE))
+		# Étendre le QG vers l'extérieur du plateau (coin)
+		var rect_origin: Vector2
+		match hq_id:
+			"HQ_V": rect_origin = BOARD_ORIGIN + grid_pos * CELL_SIZE + Vector2(CELL_SIZE - hq_size, CELL_SIZE - hq_size)
+			"HQ_B": rect_origin = BOARD_ORIGIN + grid_pos * CELL_SIZE + Vector2(0, CELL_SIZE - hq_size)
+			"HQ_J": rect_origin = BOARD_ORIGIN + grid_pos * CELL_SIZE + Vector2(CELL_SIZE - hq_size, 0)
+			"HQ_R": rect_origin = BOARD_ORIGIN + grid_pos * CELL_SIZE
+		sector_rects[hq_id] = Rect2(rect_origin, Vector2(hq_size, hq_size))
 
 	# Secteurs maritimes en bande (3 cellules chacun)
 	var sea_strips := {
@@ -141,6 +175,10 @@ func _draw() -> void:
 	for sector_id in sector_positions:
 		_draw_sector(sector_id)
 
+	# Lignes d'adjacence debug (activé par debug_adjacency)
+	if debug_adjacency:
+		_draw_debug_adjacency()
+
 	# Overlays interactifs
 	_draw_highlights()
 
@@ -180,6 +218,61 @@ func _draw_adjacency_lines() -> void:
 				continue
 			# Ligne d'adjacence très discrète
 			draw_line(pos_a, pos_b, Color(0.4, 0.5, 0.7, 0.08), 1.0)
+
+func _draw_debug_adjacency() -> void:
+	## Mode debug : dessine les connexions entre secteurs adjacents.
+	## Couleur selon le type de terrain traversable :
+	##   Vert = terrestre (terre/côtier/île)
+	##   Bleu = maritime (mer/côtier)
+	##   Blanc = aérien uniquement
+	if board_data == null:
+		return
+	var drawn: Dictionary = {}
+	var color_terre := Color(0.2, 0.9, 0.2, 0.4)
+	var color_mer := Color(0.3, 0.5, 1.0, 0.4)
+	var color_mixte := Color(0.9, 0.9, 0.3, 0.4)
+
+	for sector_id in board_data.sectors:
+		var sector: Sector = board_data.get_sector(sector_id)
+		if sector == null:
+			continue
+		var pos_a: Vector2 = sector_positions.get(sector_id, Vector2.ZERO)
+		if pos_a == Vector2.ZERO:
+			continue
+
+		for neighbor_id in sector.adjacent_sectors:
+			var key: String = (sector_id + ":" + neighbor_id) if sector_id < neighbor_id else (neighbor_id + ":" + sector_id)
+			if key in drawn:
+				continue
+			drawn[key] = true
+
+			var pos_b: Vector2 = sector_positions.get(neighbor_id, Vector2.ZERO)
+			if pos_b == Vector2.ZERO:
+				continue
+
+			var neighbor: Sector = board_data.get_sector(neighbor_id)
+			if neighbor == null:
+				continue
+
+			# Déterminer quel type d'unité peut emprunter ce lien
+			var terre_ok: bool = sector.is_accessible_by(GameEnums.UnitType.SOLDIER) and neighbor.is_accessible_by(GameEnums.UnitType.SOLDIER)
+			var mer_ok: bool = sector.is_accessible_by(GameEnums.UnitType.DESTROYER) and neighbor.is_accessible_by(GameEnums.UnitType.DESTROYER)
+
+			var line_color: Color
+			if terre_ok and mer_ok:
+				line_color = color_mixte
+			elif terre_ok:
+				line_color = color_terre
+			elif mer_ok:
+				line_color = color_mer
+			else:
+				line_color = Color(1, 1, 1, 0.2)  # Aérien seulement
+
+			draw_line(pos_a, pos_b, line_color, 2.0)
+
+			# Petit point au milieu du lien
+			var mid := (pos_a + pos_b) / 2
+			draw_circle(mid, 2.5, line_color)
 
 func _draw_sector(sector_id: String) -> void:
 	if sector_id not in sector_rects:
@@ -243,13 +336,47 @@ func _draw_sea_sector(rect: Rect2, sector_id: String) -> void:
 	_draw_sector_label(rect, sector_id, Color(0.7, 0.8, 1.0, 0.6), 9)
 
 func _draw_island_sector(rect: Rect2, sector_id: String) -> void:
-	# Bordure de plage
-	draw_rect(rect, Color(0.75, 0.70, 0.50))
-	var inner := Rect2(rect.position + Vector2(3, 3), rect.size - Vector2(6, 6))
-	draw_rect(inner, COLOR_ISLAND)
-	# Petite touffe de vert
-	var shine := Rect2(inner.position + Vector2(2, 2), Vector2(inner.size.x - 4, 3))
-	draw_rect(shine, Color(0.5, 0.75, 0.4, 0.3))
+	# Octogone pour représenter les îles (fidèle au plateau original)
+	var c := rect.get_center()
+	var hw := rect.size.x / 2 - CELL_PADDING
+	var hh := rect.size.y / 2 - CELL_PADDING
+	var cut := hw * 0.35  # Taille de la coupe des coins
+
+	# Points de l'octogone (sens horaire depuis haut-gauche)
+	var points := PackedVector2Array([
+		c + Vector2(-hw + cut, -hh),      # haut-gauche → droite
+		c + Vector2(hw - cut, -hh),        # haut-droite → gauche
+		c + Vector2(hw, -hh + cut),        # haut-droite → bas
+		c + Vector2(hw, hh - cut),         # bas-droite → haut
+		c + Vector2(hw - cut, hh),         # bas-droite → gauche
+		c + Vector2(-hw + cut, hh),        # bas-gauche → droite
+		c + Vector2(-hw, hh - cut),        # bas-gauche → haut
+		c + Vector2(-hw, -hh + cut),       # haut-gauche → bas
+	])
+
+	# Bordure de plage (octogone extérieur)
+	draw_colored_polygon(points, Color(0.75, 0.70, 0.50))
+
+	# Île intérieure (octogone réduit)
+	var inner_points := PackedVector2Array()
+	for p in points:
+		inner_points.append(c + (p - c) * 0.85)
+	draw_colored_polygon(inner_points, COLOR_ISLAND)
+
+	# Bordure
+	draw_polyline(points, COLOR_ISLAND_EDGE, 1.5, true)
+	# Fermer le polyline (dernier → premier point)
+	draw_line(points[-1], points[0], COLOR_ISLAND_EDGE, 1.5)
+
+	# Reflet subtil en haut
+	var shine_points := PackedVector2Array([
+		inner_points[0], inner_points[1], inner_points[2],
+		c + Vector2(hw * 0.85, -hh * 0.85 + hh * 0.15),
+		c + Vector2(-hw * 0.85, -hh * 0.85 + hh * 0.15),
+		inner_points[7],
+	])
+	draw_colored_polygon(shine_points, Color(0.5, 0.75, 0.4, 0.2))
+
 	_draw_sector_label(rect, sector_id, COLOR_LABEL, 10)
 
 func _draw_hq_sector(rect: Rect2, sector: Sector) -> void:

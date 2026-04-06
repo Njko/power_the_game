@@ -9,17 +9,19 @@ extends RefCounted
 ## - 12 secteurs maritimes : S1 à S12
 ##
 ## Disposition du plateau 9×9 (vue de dessus) :
+## Secteur 0 = coin le plus proche de IX (centre), secteur 8 = coin le plus proche du QG.
 ##
-## Col:  0    1    2    3    4    5    6    7    8
-## R0: HQ_V S5   S5   S5   IN   S1   S1   S1   HQ_B
-## R1: S4   V0   V1   V2   S6   B0   B1   B2   S2
-## R2: S4   V3   V4   V5   S6   B3   B4   B5   S2
-## R3: S4   V6   V7   V8   S6   B6   B7   B8   S2
-## R4: IW   S3   S3   S3   IX   S9   S9   S9   IE
-## R5: S12  J0   J1   J2   S8   R0   R1   R2   S10
-## R6: S12  J3   J4   J5   S8   R3   R4   R5   S10
-## R7: S12  J6   J7   J8   S8   R6   R7   R8   S10
-## R8: HQ_J S11  S11  S11  IS   S7   S7   S7   HQ_R
+## Numérotation diagonale par territoire (depuis coin IX):
+##   0  2  5     Secteur 0 = coin le plus proche de IX (4,4)
+##   1  4  7     Secteur 4 = centre (LAND, inaccessible navires)
+##   3  6  8     Secteur 8 = coin le plus proche du QG
+##
+## Chaque territoire applique un flip pour orienter le secteur 0 vers IX:
+##   V (haut-gauche): flip XY → V0 en bas-droite (3,3)
+##   B (haut-droite): flip Y  → B0 en bas-gauche (5,3)
+##   J (bas-gauche):  flip X  → J0 en haut-droite (3,5)
+##   R (bas-droite):  aucun   → R0 en haut-gauche (5,5)
+
 ##
 ## Territoires: V=Vert (haut-gauche), B=Bleu (haut-droite),
 ##              J=Jaune (bas-gauche), R=Rouge (bas-droite)
@@ -34,19 +36,42 @@ func _init() -> void:
 # ===== CREATION DES SECTEURS =====
 
 func _create_all_sectors() -> void:
-	_create_territory("V", GameEnums.PlayerColor.GREEN, Vector2(1, 1))
-	_create_territory("B", GameEnums.PlayerColor.BLUE, Vector2(5, 1))
-	_create_territory("J", GameEnums.PlayerColor.YELLOW, Vector2(1, 5))
-	_create_territory("R", GameEnums.PlayerColor.RED, Vector2(5, 5))
+	# flip_x/flip_y pour que secteur 0 soit au coin le plus proche de IX (4,4)
+	_create_territory("V", GameEnums.PlayerColor.GREEN, Vector2(1, 1), true, true)    # QG en haut-gauche → flip les deux axes
+	_create_territory("B", GameEnums.PlayerColor.BLUE, Vector2(5, 1), false, true)    # QG en haut-droite → flip Y seulement
+	_create_territory("J", GameEnums.PlayerColor.YELLOW, Vector2(1, 5), true, false)  # QG en bas-gauche → flip X seulement
+	_create_territory("R", GameEnums.PlayerColor.RED, Vector2(5, 5), false, false)    # QG en bas-droite → aucun flip
 
 	_create_hqs()
 	_create_islands()
 	_create_sea_sectors()
 
-func _create_territory(prefix: String, color: GameEnums.PlayerColor, origin: Vector2) -> void:
+## Mapping secteur → position locale (col, row) dans la grille 3×3.
+## Numérotation diagonale depuis le coin IX (0,0) :
+##   0  2  5
+##   1  4  7
+##   3  6  8
+const SECTOR_LOCAL_POS := [
+	Vector2(0, 0),  # 0
+	Vector2(0, 1),  # 1
+	Vector2(1, 0),  # 2
+	Vector2(0, 2),  # 3
+	Vector2(1, 1),  # 4 (centre)
+	Vector2(2, 0),  # 5
+	Vector2(1, 2),  # 6
+	Vector2(2, 1),  # 7
+	Vector2(2, 2),  # 8
+]
+
+func _create_territory(prefix: String, color: GameEnums.PlayerColor, origin: Vector2, flip_x: bool, flip_y: bool) -> void:
 	for i in range(9):
-		var col := i % 3
-		var row := i / 3
+		var local: Vector2 = SECTOR_LOCAL_POS[i]
+		var col: int = int(local.x)
+		var row: int = int(local.y)
+		if flip_x:
+			col = 2 - col
+		if flip_y:
+			row = 2 - row
 		var pos := origin + Vector2(col, row)
 		var sector_type: GameEnums.SectorType
 		if i == 4:
@@ -130,20 +155,21 @@ func _create_all_adjacencies() -> void:
 	_create_sea_island_adjacencies()
 
 func _create_territory_internal_adjacencies(prefix: String) -> void:
-	# Grille 3x3 avec déplacement diagonal:
-	# 0 1 2
-	# 3 4 5
-	# 6 7 8
+	# Grille 3x3 avec numérotation diagonale et déplacement diagonal:
+	# 0  2  5
+	# 1  4  7
+	# 3  6  8
+	# Adjacences basées sur les positions (col, row) de SECTOR_LOCAL_POS
 	var adj_map := {
-		0: [1, 3, 4],
-		1: [0, 2, 3, 4, 5],
-		2: [1, 4, 5],
-		3: [0, 1, 4, 6, 7],
-		4: [0, 1, 2, 3, 5, 6, 7, 8],  # Centre: adjacent à tout
-		5: [1, 2, 4, 7, 8],
-		6: [3, 4, 7],
-		7: [3, 4, 5, 6, 8],
-		8: [4, 5, 7],
+		0: [1, 2, 4],           # (0,0) ↔ (0,1), (1,0), (1,1)
+		1: [0, 2, 3, 4, 6],    # (0,1) ↔ (0,0), (1,0), (0,2), (1,1), (1,2)
+		2: [0, 1, 4, 5, 7],    # (1,0) ↔ (0,0), (0,1), (1,1), (2,0), (2,1)
+		3: [1, 4, 6],           # (0,2) ↔ (0,1), (1,1), (1,2)
+		4: [0, 1, 2, 3, 5, 6, 7, 8],  # (1,1) centre: adjacent à tout
+		5: [2, 4, 7],           # (2,0) ↔ (1,0), (1,1), (2,1)
+		6: [1, 3, 4, 7, 8],    # (1,2) ↔ (0,1), (0,2), (1,1), (2,1), (2,2)
+		7: [2, 4, 5, 6, 8],    # (2,1) ↔ (1,0), (1,1), (2,0), (1,2), (2,2)
+		8: [4, 6, 7],           # (2,2) ↔ (1,1), (1,2), (2,1)
 	}
 	for sector_num: int in adj_map:
 		var id: String = "%s%d" % [prefix, sector_num]
@@ -152,145 +178,145 @@ func _create_territory_internal_adjacencies(prefix: String) -> void:
 			_add_adjacency(id, neighbor_id)
 
 func _create_hq_adjacencies() -> void:
-	# Chaque QG est adjacent au secteur de coin de son territoire
+	# Chaque QG est adjacent au secteur 8 de son territoire (coin le plus proche du QG)
 	# et aux 2 secteurs maritimes les plus proches
-	_add_adjacency("HQ_V", "V0")
+	_add_adjacency("HQ_V", "V8")   # V8 à (1,1), coin le plus proche de HQ_V(0,0)
 	_add_adjacency("HQ_V", "S5")
 	_add_adjacency("HQ_V", "S4")
 
-	_add_adjacency("HQ_B", "B2")
+	_add_adjacency("HQ_B", "B8")   # B8 à (7,1), coin le plus proche de HQ_B(8,0)
 	_add_adjacency("HQ_B", "S1")
 	_add_adjacency("HQ_B", "S2")
 
-	_add_adjacency("HQ_J", "J6")
+	_add_adjacency("HQ_J", "J8")   # J8 à (1,7), coin le plus proche de HQ_J(0,8)
 	_add_adjacency("HQ_J", "S12")
 	_add_adjacency("HQ_J", "S11")
 
-	_add_adjacency("HQ_R", "R8")
+	_add_adjacency("HQ_R", "R8")   # R8 à (7,7), coin le plus proche de HQ_R(8,8)
 	_add_adjacency("HQ_R", "S7")
 	_add_adjacency("HQ_R", "S10")
 
 func _create_territory_sea_adjacencies() -> void:
-	# --- Territoire VERT (haut-gauche) à (1,1)-(3,3) ---
-	# Bord haut (row 1) → S5 (row 0, cols 1-3)
-	_add_adjacency("V0", "S5")
-	_add_adjacency("V1", "S5")
-	_add_adjacency("V2", "S5")
-	# Bord droit (col 3) → S6 (col 4, rows 1-3)
-	_add_adjacency("V2", "S6")  # V2(3,1) ↔ S6(4,1-3)
-	_add_adjacency("V5", "S6")  # V5(3,2) ↔ S6(4,1-3)
-	_add_adjacency("V8", "S6")  # V8(3,3) ↔ S6(4,1-3)
-	# Bord gauche (col 1) → S4 (col 0, rows 1-3)
-	_add_adjacency("V0", "S4")
-	_add_adjacency("V3", "S4")
-	_add_adjacency("V6", "S4")
-	# Bord bas (row 3) → S3 (row 4, cols 1-3) et IW (col 0, row 4)
-	_add_adjacency("V6", "S3")  # V6(1,3) ↔ S3(1-3,4)
-	_add_adjacency("V6", "IW")  # V6(1,3) ↔ IW(0,4)
-	_add_adjacency("V7", "S3")  # V7(2,3) ↔ S3(1-3,4)
-	_add_adjacency("V8", "S3")  # V8(3,3) ↔ S3(1-3,4)
+	# Positions après numérotation diagonale + flips:
+	# V (flip XY): V8(1,1) V6(2,1) V3(3,1) / V7(1,2) V4(2,2) V1(3,2) / V5(1,3) V2(2,3) V0(3,3)
+	# B (flip Y):  B3(5,1) B6(6,1) B8(7,1) / B1(5,2) B4(6,2) B7(7,2) / B0(5,3) B2(6,3) B5(7,3)
+	# J (flip X):  J5(1,5) J2(2,5) J0(3,5) / J7(1,6) J4(2,6) J1(3,6) / J8(1,7) J6(2,7) J3(3,7)
+	# R (aucun):   R0(5,5) R2(6,5) R5(7,5) / R1(5,6) R4(6,6) R7(7,6) / R3(5,7) R6(6,7) R8(7,7)
 
-	# --- Territoire BLEU (haut-droite) à (5,1)-(7,3) ---
-	# Bord haut (row 1) → S1 (row 0, cols 5-7)
-	_add_adjacency("B0", "S1")
-	_add_adjacency("B1", "S1")
-	_add_adjacency("B2", "S1")
-	# Bord gauche (col 5) → S6 (col 4, rows 1-3)
-	_add_adjacency("B0", "S6")  # B0(5,1) ↔ S6(4,1-3)
-	_add_adjacency("B3", "S6")  # B3(5,2) ↔ S6(4,1-3)
-	_add_adjacency("B6", "S6")  # B6(5,3) ↔ S6(4,1-3)
-	# Bord droit (col 7) → S2 (col 8, rows 1-3)
-	_add_adjacency("B2", "S2")
-	_add_adjacency("B5", "S2")
-	_add_adjacency("B8", "S2")
-	# Bord bas (row 3) → S9 (row 4, cols 5-7) et IE (col 8, row 4)
-	_add_adjacency("B6", "S9")  # B6(5,3) ↔ S9(5-7,4)
-	_add_adjacency("B7", "S9")  # B7(6,3) ↔ S9(5-7,4)
-	_add_adjacency("B8", "S9")  # B8(7,3) ↔ S9(5-7,4)
-	_add_adjacency("B8", "IE")  # B8(7,3) ↔ IE(8,4)
+	# --- Territoire VERT ---
+	# Bord haut (row 1) → S5, IN
+	_add_adjacency("V8", "S5")   # (1,1)
+	_add_adjacency("V6", "S5")   # (2,1)
+	_add_adjacency("V3", "S5")   # (3,1)
+	_add_adjacency("V3", "IN")   # (3,1) ↔ IN(4,0) diagonale
+	# Bord gauche (col 1) → S4
+	_add_adjacency("V8", "S4")   # (1,1)
+	_add_adjacency("V7", "S4")   # (1,2)
+	_add_adjacency("V5", "S4")   # (1,3)
+	# Bord droit (col 3) → S6
+	_add_adjacency("V3", "S6")   # (3,1)
+	_add_adjacency("V1", "S6")   # (3,2)
+	_add_adjacency("V0", "S6")   # (3,3)
+	# Bord bas (row 3) → S3, IW, IX
+	_add_adjacency("V5", "S3")   # (1,3)
+	_add_adjacency("V5", "IW")   # (1,3) ↔ IW(0,4) diagonale
+	_add_adjacency("V2", "S3")   # (2,3)
+	_add_adjacency("V0", "S3")   # (3,3)
+	_add_adjacency("V0", "IX")   # (3,3) ↔ IX(4,4) diagonale
 
-	# --- Territoire JAUNE (bas-gauche) à (1,5)-(3,7) ---
-	# Bord gauche (col 1) → S12 (col 0, rows 5-7)
-	_add_adjacency("J0", "S12")
-	_add_adjacency("J3", "S12")
-	_add_adjacency("J6", "S12")
-	# Bord haut (row 5) → S3 (row 4, cols 1-3) et IW (col 0, row 4)
-	_add_adjacency("J0", "S3")  # J0(1,5) ↔ S3(1-3,4)
-	_add_adjacency("J0", "IW")  # J0(1,5) ↔ IW(0,4)
-	_add_adjacency("J1", "S3")  # J1(2,5) ↔ S3(1-3,4)
-	_add_adjacency("J2", "S3")  # J2(3,5) ↔ S3(1-3,4)
-	# Bord droit (col 3) → S8 (col 4, rows 5-7)
-	_add_adjacency("J2", "S8")  # J2(3,5) ↔ S8(4,5-7)
-	_add_adjacency("J5", "S8")  # J5(3,6) ↔ S8(4,5-7)
-	_add_adjacency("J8", "S8")  # J8(3,7) ↔ S8(4,5-7)
-	# Bord bas (row 7) → S11 (row 8, cols 1-3)
-	_add_adjacency("J6", "S11")
-	_add_adjacency("J7", "S11")
-	_add_adjacency("J8", "S11")
+	# --- Territoire BLEU ---
+	# Bord haut (row 1) → S1, IN
+	_add_adjacency("B3", "S1")   # (5,1)
+	_add_adjacency("B3", "IN")   # (5,1) ↔ IN(4,0) diagonale
+	_add_adjacency("B6", "S1")   # (6,1)
+	_add_adjacency("B8", "S1")   # (7,1)
+	# Bord gauche (col 5) → S6
+	_add_adjacency("B3", "S6")   # (5,1)
+	_add_adjacency("B1", "S6")   # (5,2)
+	_add_adjacency("B0", "S6")   # (5,3)
+	# Bord droit (col 7) → S2
+	_add_adjacency("B8", "S2")   # (7,1)
+	_add_adjacency("B7", "S2")   # (7,2)
+	_add_adjacency("B5", "S2")   # (7,3)
+	# Bord bas (row 3) → S9, IX, IE
+	_add_adjacency("B0", "S9")   # (5,3)
+	_add_adjacency("B0", "IX")   # (5,3) ↔ IX(4,4) diagonale
+	_add_adjacency("B2", "S9")   # (6,3)
+	_add_adjacency("B5", "S9")   # (7,3)
+	_add_adjacency("B5", "IE")   # (7,3) ↔ IE(8,4) diagonale
 
-	# --- Territoire ROUGE (bas-droite) à (5,5)-(7,7) ---
-	# Bord haut (row 5) → S9 (row 4, cols 5-7) et IE (col 8, row 4)
-	_add_adjacency("R0", "S9")  # R0(5,5) ↔ S9(5-7,4)
-	_add_adjacency("R1", "S9")  # R1(6,5) ↔ S9(5-7,4)
-	_add_adjacency("R2", "S9")  # R2(7,5) ↔ S9(5-7,4)
-	_add_adjacency("R2", "IE")  # R2(7,5) ↔ IE(8,4)
-	# Bord gauche (col 5) → S8 (col 4, rows 5-7)
-	_add_adjacency("R0", "S8")  # R0(5,5) ↔ S8(4,5-7)
-	_add_adjacency("R3", "S8")  # R3(5,6) ↔ S8(4,5-7)
-	_add_adjacency("R6", "S8")  # R6(5,7) ↔ S8(4,5-7)
-	# Bord droit (col 7) → S10 (col 8, rows 5-7)
-	_add_adjacency("R2", "S10")
-	_add_adjacency("R5", "S10")
-	_add_adjacency("R8", "S10")
-	# Bord bas (row 7) → S7 (row 8, cols 5-7)
-	_add_adjacency("R6", "S7")
-	_add_adjacency("R7", "S7")
-	_add_adjacency("R8", "S7")
+	# --- Territoire JAUNE ---
+	# Bord haut (row 5) → S3, IW, IX
+	_add_adjacency("J5", "S3")   # (1,5)
+	_add_adjacency("J5", "IW")   # (1,5) ↔ IW(0,4) diagonale
+	_add_adjacency("J2", "S3")   # (2,5)
+	_add_adjacency("J0", "S3")   # (3,5)
+	_add_adjacency("J0", "IX")   # (3,5) ↔ IX(4,4) diagonale
+	# Bord gauche (col 1) → S12
+	_add_adjacency("J5", "S12")  # (1,5)
+	_add_adjacency("J7", "S12")  # (1,6)
+	_add_adjacency("J8", "S12")  # (1,7)
+	# Bord droit (col 3) → S8
+	_add_adjacency("J0", "S8")   # (3,5)
+	_add_adjacency("J1", "S8")   # (3,6)
+	_add_adjacency("J3", "S8")   # (3,7)
+	# Bord bas (row 7) → S11, IS
+	_add_adjacency("J8", "S11")  # (1,7)
+	_add_adjacency("J6", "S11")  # (2,7)
+	_add_adjacency("J3", "S11")  # (3,7)
+	_add_adjacency("J3", "IS")   # (3,7) ↔ IS(4,8) diagonale
+
+	# --- Territoire ROUGE (aucun flip) ---
+	# Bord haut (row 5) → S9, IX, IE
+	_add_adjacency("R0", "S9")   # (5,5)
+	_add_adjacency("R0", "IX")   # (5,5) ↔ IX(4,4) diagonale
+	_add_adjacency("R2", "S9")   # (6,5)
+	_add_adjacency("R5", "S9")   # (7,5)
+	_add_adjacency("R5", "IE")   # (7,5) ↔ IE(8,4) diagonale
+	# Bord gauche (col 5) → S8
+	_add_adjacency("R0", "S8")   # (5,5)
+	_add_adjacency("R1", "S8")   # (5,6)
+	_add_adjacency("R3", "S8")   # (5,7)
+	# Bord droit (col 7) → S10
+	_add_adjacency("R5", "S10")  # (7,5)
+	_add_adjacency("R7", "S10")  # (7,6)
+	_add_adjacency("R8", "S10")  # (7,7)
+	# Bord bas (row 7) → S7, IS
+	_add_adjacency("R3", "S7")   # (5,7)
+	_add_adjacency("R3", "IS")   # (5,7) ↔ IS(4,8) diagonale
+	_add_adjacency("R6", "S7")   # (6,7)
+	_add_adjacency("R8", "S7")   # (7,7)
 
 func _create_sea_island_adjacencies() -> void:
+	# Règle: on ne peut pas passer d'un secteur maritime à un autre directement.
+	# Il faut passer par une île ou un secteur côtier de territoire.
+	# Seules les connexions S↔île sont conservées.
+
 	# --- Canal Nord ---
 	_add_adjacency("S5", "IN")
 	_add_adjacency("IN", "S1")
 	_add_adjacency("IN", "S6")
-	_add_adjacency("S5", "S6")
-	_add_adjacency("S1", "S6")
 
 	# --- Canal Ouest ---
 	_add_adjacency("S4", "IW")
 	_add_adjacency("IW", "S12")
 	_add_adjacency("IW", "S3")
-	_add_adjacency("S4", "S3")
-	_add_adjacency("S12", "S3")
 
 	# --- Canal Est ---
 	_add_adjacency("S2", "IE")
 	_add_adjacency("IE", "S10")
 	_add_adjacency("IE", "S9")
-	_add_adjacency("S2", "S9")
-	_add_adjacency("S10", "S9")
 
 	# --- Canal Sud ---
 	_add_adjacency("S11", "IS")
 	_add_adjacency("IS", "S7")
 	_add_adjacency("IS", "S8")
-	_add_adjacency("S11", "S8")
-	_add_adjacency("S7", "S8")
 
 	# --- Anneau intérieur autour de IX ---
 	_add_adjacency("S6", "IX")
 	_add_adjacency("S3", "IX")
 	_add_adjacency("S8", "IX")
 	_add_adjacency("S9", "IX")
-	_add_adjacency("S6", "S3")
-	_add_adjacency("S6", "S9")
-	_add_adjacency("S3", "S8")
-	_add_adjacency("S8", "S9")
-
-	# --- Connexions coin extérieur (via zones HQ) ---
-	_add_adjacency("S5", "S4")   # Coin HQ_V
-	_add_adjacency("S1", "S2")   # Coin HQ_B
-	_add_adjacency("S12", "S11") # Coin HQ_J
-	_add_adjacency("S7", "S10")  # Coin HQ_R
 
 func _add_adjacency(id_a: String, id_b: String) -> void:
 	if id_a in sectors and id_b in sectors:

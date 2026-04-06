@@ -6,6 +6,7 @@ class_name Board3D
 ## Fournit les conversions de coordonnées grille ↔ 3D ↔ écran.
 
 signal sector_clicked(sector_id: String)
+signal sector_clicked_with_pos(sector_id: String, screen_pos: Vector2)
 signal sector_hovered(sector_id: String)
 
 # Le plateau logique va de (0, 0) à (8, 8) en coordonnées grille.
@@ -191,3 +192,4 @@ func _unhandled_input(event: InputEvent) -> void:
 				board_renderer.selected_sector = clicked
 				board_renderer.queue_redraw()
 				sector_clicked.emit(clicked)
+				sector_clicked_with_pos.emit(clicked, event.position)

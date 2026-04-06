@@ -3,14 +3,21 @@ class_name UnitRenderer
 
 ## Affiche les unités sur le plateau avec des icônes géométriques distinctes.
 ## Chaque type d'unité a une forme unique, colorée selon le joueur.
+## Redessiné pour être fidèle aux pièces meeple du jeu original Spear's 1981.
 
 var board_renderer: BoardRenderer
 var board_3d  # Board3D — set by main.gd
 var game_state: GameState
 
-const ICON_SIZE := 14.0      # Rayon de base des icônes (agrandi pour la vue 3D)
-const ICON_SPACING := 24.0   # Espace entre icônes dans un secteur
+const ICON_SIZE := 20.0      # Rayon de base des icônes
+const ICON_SPACING := 32.0   # Espace entre icônes dans un secteur
 const MAX_PER_ROW := 3       # Max icônes par ligne dans un secteur
+
+# Position tracking pour hit-testing
+var _icon_positions: Array = []
+
+# Unité sélectionnée (définie par main.gd)
+var selected_unit: UnitData = null
 
 func update_display() -> void:
 	queue_redraw()
@@ -23,6 +30,8 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	if game_state == null:
 		return
+
+	_icon_positions.clear()
 
 	var position_source_3d := board_3d != null
 	var positions: Dictionary = {}
@@ -53,6 +62,9 @@ func _draw_units_at_sector(units: Array, base_pos: Vector2, scale_factor: float 
 
 	# Calculer la disposition
 	var spacing := ICON_SPACING * scale_factor
+	# Réduction dynamique pour secteurs encombrés
+	if count > 9:
+		spacing *= 0.75
 	var cols: int = mini(count, MAX_PER_ROW)
 	var rows: int = ceili(float(count) / cols)
 	var start_x: float = -(cols - 1) * spacing * 0.5
@@ -66,9 +78,29 @@ func _draw_units_at_sector(units: Array, base_pos: Vector2, scale_factor: float 
 		var pos := base_pos + offset
 		var color: Color = GameEnums.get_player_color(unit.owner)
 
-		_draw_unit_icon(pos, unit.unit_type, color, unit.owner, scale_factor)
+		# Enregistrer la position pour le hit-testing
+		_icon_positions.append({pos = pos, unit = unit, radius = ICON_SIZE * scale_factor})
 
-func _draw_unit_icon(pos: Vector2, unit_type: GameEnums.UnitType, color: Color, owner: GameEnums.PlayerColor, sf: float = 1.0) -> void:
+		_draw_unit_icon(pos, unit.unit_type, color, unit.owner, scale_factor, unit)
+
+## Retourne l'unité la plus proche de la position écran donnée, ou null
+func get_unit_at_screen_pos(screen_pos: Vector2) -> UnitData:
+	var meilleur_unit: UnitData = null
+	var meilleure_dist: float = INF
+	for entry in _icon_positions:
+		var dist: float = screen_pos.distance_to(entry.pos)
+		if dist < entry.radius * 1.5 and dist < meilleure_dist:
+			meilleure_dist = dist
+			meilleur_unit = entry.unit
+	return meilleur_unit
+
+func _draw_unit_icon(pos: Vector2, unit_type: GameEnums.UnitType, color: Color, owner: GameEnums.PlayerColor, sf: float = 1.0, unit: UnitData = null) -> void:
+	# Halo de sélection
+	if unit != null and unit == selected_unit:
+		var glow_radius: float = ICON_SIZE * 1.4 * sf
+		draw_circle(pos, glow_radius, Color(1.0, 1.0, 0.6, 0.35))
+		draw_circle(pos, glow_radius * 0.85, Color(1.0, 1.0, 0.8, 0.25))
+
 	# Ombre
 	var shadow_offset := Vector2(1, 1) * sf
 
@@ -97,38 +129,48 @@ func _draw_unit_icon(pos: Vector2, unit_type: GameEnums.UnitType, color: Color, 
 			_draw_missile(pos, color, shadow_offset, sf)
 
 # ===== SOLDAT / RÉGIMENT =====
-# Cercle (tête) + corps triangulaire
+# Silhouette accroupie avec fusil
 
 func _draw_soldier(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
 	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
 	var dark := color.darkened(0.3)
 
-	# Ombre
-	draw_circle(pos + shadow + Vector2(0, -s * 0.4), s * 0.35, Color(0, 0, 0, 0.3))
+	# Ombre du corps
+	draw_circle(pos + shadow + Vector2(0, -s * 0.3), s * 0.4, Color(0, 0, 0, 0.3))
 
-	# Corps (triangle)
-	var body := PackedVector2Array([
-		pos + Vector2(-s * 0.5, s * 0.5),
-		pos + Vector2(s * 0.5, s * 0.5),
-		pos + Vector2(0, -s * 0.1),
+	# Corps — silhouette accroupie (polygone 7 points)
+	var corps := PackedVector2Array([
+		pos + Vector2(-s * 0.45, s * 0.55),   # Pied gauche
+		pos + Vector2(-s * 0.35, s * 0.1),    # Genou gauche
+		pos + Vector2(-s * 0.2, -s * 0.05),   # Taille gauche
+		pos + Vector2(-s * 0.35, -s * 0.3),   # Épaule gauche
+		pos + Vector2(s * 0.35, -s * 0.3),    # Épaule droite
+		pos + Vector2(s * 0.2, -s * 0.05),    # Taille droite
+		pos + Vector2(s * 0.35, s * 0.1),     # Genou droit
+		pos + Vector2(s * 0.5, s * 0.55),     # Pied droit
 	])
-	draw_colored_polygon(body, dark)
+	draw_colored_polygon(corps, dark)
 
 	# Tête (cercle)
-	draw_circle(pos + Vector2(0, -s * 0.4), s * 0.35, color)
+	var tete_pos := pos + Vector2(0, -s * 0.5)
+	draw_circle(tete_pos, s * 0.25, color)
+	draw_arc(tete_pos, s * 0.25, 0, TAU, 16, color.lightened(0.3), 1.0 * sf)
 
-	# Contour tête
-	draw_arc(pos + Vector2(0, -s * 0.4), s * 0.35, 0, TAU, 16, color.lightened(0.3), 1.0)
+	# Fusil — ligne inclinée depuis l'épaule droite
+	var fusil_base := pos + Vector2(s * 0.25, -s * 0.3)
+	var fusil_bout := pos + Vector2(s * 0.55, -s * 0.7)
+	draw_line(fusil_base, fusil_bout, dark.darkened(0.2), 2.0 * sf)
 
 	if is_big:
-		# Double barre pour régiment
-		draw_line(pos + Vector2(-s * 0.6, s * 0.6), pos + Vector2(s * 0.6, s * 0.6),
-			color.lightened(0.4), 2.0)
-		draw_line(pos + Vector2(-s * 0.5, s * 0.75), pos + Vector2(s * 0.5, s * 0.75),
-			color.lightened(0.4), 1.5)
+		# Chevron V pour régiment
+		var chev_y: float = s * 0.7
+		draw_line(pos + Vector2(-s * 0.3, chev_y), pos + Vector2(0, chev_y + s * 0.15),
+			color.lightened(0.4), 2.0 * sf)
+		draw_line(pos + Vector2(0, chev_y + s * 0.15), pos + Vector2(s * 0.3, chev_y),
+			color.lightened(0.4), 2.0 * sf)
 
 # ===== TANK / CHAR D'ASSAUT =====
-# Rectangle (châssis) + ligne (canon)
+# Profil de véhicule compact
 
 func _draw_tank(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
 	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
@@ -138,192 +180,352 @@ func _draw_tank(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: f
 	draw_rect(Rect2(pos + shadow - Vector2(s * 0.6, s * 0.3), Vector2(s * 1.2, s * 0.7)),
 		Color(0, 0, 0, 0.3))
 
-	# Chenilles (rectangle foncé)
-	draw_rect(Rect2(pos - Vector2(s * 0.7, s * 0.35), Vector2(s * 1.4, s * 0.8)), dark)
+	# Chenille haute (rectangle arrondi sombre)
+	var chenille_h := Rect2(pos - Vector2(s * 0.65, s * 0.4), Vector2(s * 1.3, s * 0.22))
+	draw_rect(chenille_h, dark.darkened(0.2))
+	# Chenille basse
+	var chenille_b := Rect2(pos + Vector2(-s * 0.65, s * 0.2), Vector2(s * 1.3, s * 0.22))
+	draw_rect(chenille_b, dark.darkened(0.2))
 
-	# Châssis (rectangle principal)
-	draw_rect(Rect2(pos - Vector2(s * 0.55, s * 0.25), Vector2(s * 1.1, s * 0.55)), color)
+	# Châssis trapézoïdal (plus étroit à droite/avant)
+	var chassis := PackedVector2Array([
+		pos + Vector2(-s * 0.6, -s * 0.18),   # Arrière haut
+		pos + Vector2(s * 0.5, -s * 0.12),    # Avant haut
+		pos + Vector2(s * 0.55, s * 0.2),     # Avant bas
+		pos + Vector2(-s * 0.6, s * 0.2),     # Arrière bas
+	])
+	draw_colored_polygon(chassis, color)
 
-	# Tourelle (petit carré)
-	draw_rect(Rect2(pos - Vector2(s * 0.25, s * 0.2), Vector2(s * 0.5, s * 0.35)),
-		color.lightened(0.15))
+	# Tourelle (carré arrondi centré)
+	var tourelle_w: float = s * (0.5 if is_big else 0.4)
+	var tourelle_h: float = s * 0.3
+	var tourelle_rect := Rect2(pos - Vector2(tourelle_w * 0.5, tourelle_h * 0.7), Vector2(tourelle_w, tourelle_h))
+	draw_rect(tourelle_rect, color.lightened(0.15))
 
 	# Canon
 	var canon_len: float = s * (1.0 if is_big else 0.7)
-	draw_line(pos + Vector2(s * 0.1, -s * 0.05),
-		pos + Vector2(s * 0.1 + canon_len, -s * 0.05),
-		dark, 2.5 if is_big else 2.0)
+	var canon_y: float = -s * 0.15
+	draw_line(pos + Vector2(tourelle_w * 0.3, canon_y),
+		pos + Vector2(tourelle_w * 0.3 + canon_len, canon_y),
+		dark, (2.5 if is_big else 2.0) * sf)
+	# Frein de bouche
+	var muzzle_x: float = tourelle_w * 0.3 + canon_len
+	draw_rect(Rect2(pos + Vector2(muzzle_x - s * 0.04, canon_y - s * 0.06), Vector2(s * 0.08, s * 0.12)),
+		dark)
 
 	if is_big:
-		# Étoile sur la tourelle pour char d'assaut
-		draw_circle(pos, s * 0.12, color.lightened(0.4))
+		# Emblème étoile sur tourelle
+		draw_circle(pos + Vector2(0, -s * 0.15), s * 0.1, color.lightened(0.4))
 
 # ===== CHASSEUR / BOMBARDIER =====
-# Triangle pointant vers le haut (forme d'avion)
+# Avion à ailes delta / B-52
 
 func _draw_plane(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
 	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
 	var dark := color.darkened(0.3)
 
-	# Ombre
-	var shadow_shape := PackedVector2Array([
-		pos + shadow + Vector2(0, -s * 0.7),
-		pos + shadow + Vector2(-s * 0.6, s * 0.5),
-		pos + shadow + Vector2(s * 0.6, s * 0.5),
-	])
-	draw_colored_polygon(shadow_shape, Color(0, 0, 0, 0.3))
-
-	# Fuselage (triangle principal - nez vers le haut)
-	var fuselage := PackedVector2Array([
-		pos + Vector2(0, -s * 0.7),    # Nez
-		pos + Vector2(-s * 0.2, s * 0.4),
-		pos + Vector2(s * 0.2, s * 0.4),
-	])
-	draw_colored_polygon(fuselage, color)
-
-	# Ailes
-	var left_wing := PackedVector2Array([
-		pos + Vector2(-s * 0.15, 0),
-		pos + Vector2(-s * 0.7, s * 0.3),
-		pos + Vector2(-s * 0.1, s * 0.25),
-	])
-	var right_wing := PackedVector2Array([
-		pos + Vector2(s * 0.15, 0),
-		pos + Vector2(s * 0.7, s * 0.3),
-		pos + Vector2(s * 0.1, s * 0.25),
-	])
-	draw_colored_polygon(left_wing, dark)
-	draw_colored_polygon(right_wing, dark)
-
-	# Queue
-	var tail := PackedVector2Array([
-		pos + Vector2(-s * 0.3, s * 0.4),
-		pos + Vector2(s * 0.3, s * 0.4),
-		pos + Vector2(0, s * 0.6),
-	])
-	draw_colored_polygon(tail, dark)
-
 	if is_big:
-		# Bombes sous les ailes pour bombardier
-		draw_circle(pos + Vector2(-s * 0.35, s * 0.2), s * 0.08, Color.BLACK)
-		draw_circle(pos + Vector2(s * 0.35, s * 0.2), s * 0.08, Color.BLACK)
-		# Bande blanche
-		draw_line(pos + Vector2(-s * 0.15, -s * 0.1), pos + Vector2(s * 0.15, -s * 0.1),
-			color.lightened(0.5), 1.5)
+		# === BOMBARDIER (style B-52) ===
+		# Ombre
+		var ombre_bomb := PackedVector2Array([
+			pos + shadow + Vector2(0, -s * 0.65),
+			pos + shadow + Vector2(-s * 0.2, s * 0.4),
+			pos + shadow + Vector2(s * 0.2, s * 0.4),
+		])
+		draw_colored_polygon(ombre_bomb, Color(0, 0, 0, 0.3))
+
+		# Fuselage large et trapu
+		var fuselage := PackedVector2Array([
+			pos + Vector2(0, -s * 0.6),       # Nez
+			pos + Vector2(-s * 0.18, s * 0.05),
+			pos + Vector2(-s * 0.22, s * 0.4),
+			pos + Vector2(s * 0.22, s * 0.4),
+			pos + Vector2(s * 0.18, s * 0.05),
+		])
+		draw_colored_polygon(fuselage, color)
+
+		# Ailes droites (non balayées) très larges
+		var aile_g := PackedVector2Array([
+			pos + Vector2(-s * 0.12, -s * 0.05),
+			pos + Vector2(-s * 0.9, s * 0.05),
+			pos + Vector2(-s * 0.85, s * 0.15),
+			pos + Vector2(-s * 0.1, s * 0.1),
+		])
+		var aile_d := PackedVector2Array([
+			pos + Vector2(s * 0.12, -s * 0.05),
+			pos + Vector2(s * 0.9, s * 0.05),
+			pos + Vector2(s * 0.85, s * 0.15),
+			pos + Vector2(s * 0.1, s * 0.1),
+		])
+		draw_colored_polygon(aile_g, dark)
+		draw_colored_polygon(aile_d, dark)
+
+		# 4 moteurs (2 par aile)
+		draw_circle(pos + Vector2(-s * 0.35, s * 0.07), s * 0.06, dark.darkened(0.3))
+		draw_circle(pos + Vector2(-s * 0.6, s * 0.1), s * 0.06, dark.darkened(0.3))
+		draw_circle(pos + Vector2(s * 0.35, s * 0.07), s * 0.06, dark.darkened(0.3))
+		draw_circle(pos + Vector2(s * 0.6, s * 0.1), s * 0.06, dark.darkened(0.3))
+
+		# Queue — stabilisateur vertical plus haut
+		var queue := PackedVector2Array([
+			pos + Vector2(-s * 0.08, s * 0.3),
+			pos + Vector2(s * 0.08, s * 0.3),
+			pos + Vector2(0, s * 0.6),
+		])
+		draw_colored_polygon(queue, dark)
+		# Dérive verticale
+		draw_line(pos + Vector2(0, s * 0.25), pos + Vector2(0, s * 0.6), dark.darkened(0.1), 2.0 * sf)
+
+		# Cockpit
+		draw_circle(pos + Vector2(0, -s * 0.45), s * 0.06, color.lightened(0.5))
+	else:
+		# === CHASSEUR (ailes delta) ===
+		# Ombre
+		var ombre_chass := PackedVector2Array([
+			pos + shadow + Vector2(0, -s * 0.75),
+			pos + shadow + Vector2(-s * 0.55, s * 0.45),
+			pos + shadow + Vector2(s * 0.55, s * 0.45),
+		])
+		draw_colored_polygon(ombre_chass, Color(0, 0, 0, 0.3))
+
+		# Fuselage étroit pointant vers le haut
+		var fuselage := PackedVector2Array([
+			pos + Vector2(0, -s * 0.75),      # Nez
+			pos + Vector2(-s * 0.12, s * 0.1),
+			pos + Vector2(-s * 0.15, s * 0.4),
+			pos + Vector2(s * 0.15, s * 0.4),
+			pos + Vector2(s * 0.12, s * 0.1),
+		])
+		draw_colored_polygon(fuselage, color)
+
+		# Ailes delta balayées
+		var aile_g := PackedVector2Array([
+			pos + Vector2(-s * 0.1, -s * 0.1),
+			pos + Vector2(-s * 0.7, s * 0.35),
+			pos + Vector2(-s * 0.12, s * 0.2),
+		])
+		var aile_d := PackedVector2Array([
+			pos + Vector2(s * 0.1, -s * 0.1),
+			pos + Vector2(s * 0.7, s * 0.35),
+			pos + Vector2(s * 0.12, s * 0.2),
+		])
+		draw_colored_polygon(aile_g, dark)
+		draw_colored_polygon(aile_d, dark)
+
+		# Queue — petit V inversé
+		var queue := PackedVector2Array([
+			pos + Vector2(-s * 0.2, s * 0.35),
+			pos + Vector2(s * 0.2, s * 0.35),
+			pos + Vector2(0, s * 0.55),
+		])
+		draw_colored_polygon(queue, dark)
+
+		# Cockpit
+		draw_circle(pos + Vector2(0, -s * 0.5), s * 0.06, color.lightened(0.5))
 
 # ===== DESTROYER / CROISEUR =====
-# Forme de bateau (losange allongé horizontalement)
+# Profil latéral de navire de guerre
 
 func _draw_ship(pos: Vector2, color: Color, shadow: Vector2, is_big: bool, sf: float = 1.0) -> void:
 	var s: float = ICON_SIZE * (1.3 if is_big else 1.0) * sf
 	var dark := color.darkened(0.3)
 
-	# Ombre
-	var shadow_hull := PackedVector2Array([
-		pos + shadow + Vector2(-s * 0.8, 0),
-		pos + shadow + Vector2(-s * 0.3, -s * 0.35),
-		pos + shadow + Vector2(s * 0.5, -s * 0.35),
-		pos + shadow + Vector2(s * 0.8, 0),
-		pos + shadow + Vector2(s * 0.5, s * 0.35),
-		pos + shadow + Vector2(-s * 0.3, s * 0.35),
-	])
-	draw_colored_polygon(shadow_hull, Color(0, 0, 0, 0.3))
-
-	# Coque (hexagone allongé, proue à droite)
-	var hull := PackedVector2Array([
-		pos + Vector2(-s * 0.8, 0),        # Poupe
-		pos + Vector2(-s * 0.3, -s * 0.35),
-		pos + Vector2(s * 0.5, -s * 0.35),
-		pos + Vector2(s * 0.8, 0),         # Proue
-		pos + Vector2(s * 0.5, s * 0.35),
-		pos + Vector2(-s * 0.3, s * 0.35),
-	])
-	draw_colored_polygon(hull, color)
-
-	# Pont (ligne centrale)
-	draw_line(pos + Vector2(-s * 0.5, 0), pos + Vector2(s * 0.5, 0), dark, 1.5)
-
-	# Cheminée / mât
-	draw_line(pos + Vector2(0, 0), pos + Vector2(0, -s * 0.5), dark, 2.0)
-
 	if is_big:
-		# Croiseur: 2 cheminées + pont plus large
-		draw_line(pos + Vector2(-s * 0.25, 0), pos + Vector2(-s * 0.25, -s * 0.4), dark, 1.5)
-		draw_line(pos + Vector2(s * 0.25, 0), pos + Vector2(s * 0.25, -s * 0.4), dark, 1.5)
+		# === CROISEUR ===
+		# Ombre
+		var ombre_coque := PackedVector2Array([
+			pos + shadow + Vector2(-s * 0.85, s * 0.05),  # Poupe
+			pos + shadow + Vector2(-s * 0.7, -s * 0.25),
+			pos + shadow + Vector2(s * 0.6, -s * 0.25),
+			pos + shadow + Vector2(s * 0.9, s * 0.05),    # Proue
+			pos + shadow + Vector2(s * 0.5, s * 0.3),
+			pos + shadow + Vector2(-s * 0.7, s * 0.3),
+		])
+		draw_colored_polygon(ombre_coque, Color(0, 0, 0, 0.3))
+
+		# Coque longue
+		var coque := PackedVector2Array([
+			pos + Vector2(-s * 0.85, s * 0.05),   # Poupe
+			pos + Vector2(-s * 0.7, -s * 0.25),
+			pos + Vector2(s * 0.6, -s * 0.25),
+			pos + Vector2(s * 0.9, s * 0.05),     # Proue pointue
+			pos + Vector2(s * 0.5, s * 0.3),
+			pos + Vector2(-s * 0.7, s * 0.3),
+		])
+		draw_colored_polygon(coque, color)
+
+		# Pont (ligne horizontale)
+		draw_line(pos + Vector2(-s * 0.65, -s * 0.05), pos + Vector2(s * 0.6, -s * 0.05),
+			dark, 1.5 * sf)
+
+		# Deux blocs superstructure (avant et arrière)
+		draw_rect(Rect2(pos + Vector2(-s * 0.35, -s * 0.25), Vector2(s * 0.25, s * 0.2)),
+			dark.lightened(0.1))
+		draw_rect(Rect2(pos + Vector2(s * 0.1, -s * 0.25), Vector2(s * 0.25, s * 0.2)),
+			dark.lightened(0.1))
+
+		# Tourelles de canon (cercles avant et arrière)
+		draw_circle(pos + Vector2(-s * 0.5, -s * 0.12), s * 0.08, dark.darkened(0.1))
+		draw_circle(pos + Vector2(s * 0.45, -s * 0.12), s * 0.08, dark.darkened(0.1))
+
+		# Deux mâts
+		draw_line(pos + Vector2(-s * 0.22, -s * 0.25), pos + Vector2(-s * 0.22, -s * 0.55),
+			dark, 1.5 * sf)
+		draw_line(pos + Vector2(s * 0.22, -s * 0.25), pos + Vector2(s * 0.22, -s * 0.55),
+			dark, 1.5 * sf)
+
 		# Ligne de flottaison
-		draw_line(pos + Vector2(-s * 0.6, s * 0.15), pos + Vector2(s * 0.6, s * 0.15),
-			color.lightened(0.3), 1.0)
+		draw_line(pos + Vector2(-s * 0.7, s * 0.18), pos + Vector2(s * 0.6, s * 0.18),
+			color.lightened(0.3), 1.0 * sf)
+	else:
+		# === DESTROYER ===
+		# Ombre
+		var ombre_coque := PackedVector2Array([
+			pos + shadow + Vector2(-s * 0.75, s * 0.05),
+			pos + shadow + Vector2(-s * 0.55, -s * 0.3),
+			pos + shadow + Vector2(s * 0.5, -s * 0.3),
+			pos + shadow + Vector2(s * 0.8, s * 0.05),
+			pos + shadow + Vector2(s * 0.4, s * 0.3),
+			pos + shadow + Vector2(-s * 0.55, s * 0.3),
+		])
+		draw_colored_polygon(ombre_coque, Color(0, 0, 0, 0.3))
+
+		# Coque — proue pointue à droite, poupe arrondie à gauche
+		var coque := PackedVector2Array([
+			pos + Vector2(-s * 0.75, s * 0.05),   # Poupe
+			pos + Vector2(-s * 0.55, -s * 0.3),
+			pos + Vector2(s * 0.5, -s * 0.3),
+			pos + Vector2(s * 0.8, s * 0.05),     # Proue
+			pos + Vector2(s * 0.4, s * 0.3),
+			pos + Vector2(-s * 0.55, s * 0.3),
+		])
+		draw_colored_polygon(coque, color)
+
+		# Pont
+		draw_line(pos + Vector2(-s * 0.5, -s * 0.05), pos + Vector2(s * 0.5, -s * 0.05),
+			dark, 1.5 * sf)
+
+		# Superstructure centrale
+		draw_rect(Rect2(pos + Vector2(-s * 0.15, -s * 0.3), Vector2(s * 0.3, s * 0.22)),
+			dark.lightened(0.1))
+
+		# Mât unique
+		draw_line(pos + Vector2(0, -s * 0.3), pos + Vector2(0, -s * 0.6),
+			dark, 2.0 * sf)
 
 # ===== DRAPEAU =====
+# Base carrée + mât + fanion ondulant
 
 func _draw_flag(pos: Vector2, color: Color, shadow: Vector2, sf: float = 1.0) -> void:
 	var s: float = ICON_SIZE * sf
 
-	# Mât
-	draw_line(pos + shadow + Vector2(0, s * 0.6), pos + shadow + Vector2(0, -s * 0.7),
-		Color(0, 0, 0, 0.3), 2.0)
-	draw_line(pos + Vector2(0, s * 0.6), pos + Vector2(0, -s * 0.7),
-		Color(0.4, 0.3, 0.2), 2.0)
+	# Base carrée
+	var base_size: float = s * 0.3
+	draw_rect(Rect2(pos + Vector2(-base_size * 0.5, s * 0.45), Vector2(base_size, base_size)),
+		Color(0.35, 0.25, 0.15))
 
-	# Drapeau (rectangle ondulant)
-	var flag := PackedVector2Array([
-		pos + Vector2(0, -s * 0.7),
-		pos + Vector2(s * 0.7, -s * 0.5),
-		pos + Vector2(s * 0.6, -s * 0.2),
-		pos + Vector2(0, -s * 0.3),
+	# Mât — ombre puis mât
+	draw_line(pos + shadow + Vector2(-s * 0.05, s * 0.5), pos + shadow + Vector2(-s * 0.05, -s * 0.75),
+		Color(0, 0, 0, 0.3), 2.0 * sf)
+	draw_line(pos + Vector2(-s * 0.05, s * 0.5), pos + Vector2(-s * 0.05, -s * 0.75),
+		Color(0.4, 0.3, 0.2), 2.0 * sf)
+
+	# Fanion ondulant (polygone 5-6 points avec forme de vague)
+	var drapeau := PackedVector2Array([
+		pos + Vector2(-s * 0.05, -s * 0.75),   # Haut du mât
+		pos + Vector2(s * 0.55, -s * 0.6),     # Pointe haute
+		pos + Vector2(s * 0.65, -s * 0.45),    # Creux de vague
+		pos + Vector2(s * 0.5, -s * 0.3),      # Pointe basse
+		pos + Vector2(-s * 0.05, -s * 0.35),   # Retour au mât
 	])
-	draw_colored_polygon(flag, color)
+	draw_colored_polygon(drapeau, color)
 	# Bordure du drapeau
-	draw_polyline(flag, color.lightened(0.3), 1.0)
+	draw_polyline(drapeau, color.lightened(0.3), 1.0 * sf)
 
-# ===== POWER (étoile) =====
+# ===== POWER (éclair) =====
 
-func _draw_power(pos: Vector2, color: Color, shadow: Vector2, sf: float = 1.0) -> void:
-	var s: float = ICON_SIZE * 0.7 * sf
-	_draw_star(pos + shadow, s, Color(0, 0, 0, 0.3))
-	_draw_star(pos, s, Color(1.0, 0.85, 0.2))  # Toujours doré
+func _draw_power(pos: Vector2, _color: Color, shadow: Vector2, sf: float = 1.0) -> void:
+	var s: float = ICON_SIZE * 0.8 * sf
+	var gold := Color(1.0, 0.85, 0.2)
 
-func _draw_star(center: Vector2, radius: float, color: Color) -> void:
-	var points := PackedVector2Array()
-	for i in range(10):
-		var angle: float = -PI / 2 + i * TAU / 10
-		var r: float = radius if i % 2 == 0 else radius * 0.45
-		points.append(center + Vector2(cos(angle), sin(angle)) * r)
-	draw_colored_polygon(points, color)
+	# Halo subtil semi-transparent
+	_draw_lightning(pos, s * 1.15, Color(1.0, 0.9, 0.3, 0.3))
+	# Ombre
+	_draw_lightning(pos + shadow, s, Color(0, 0, 0, 0.3))
+	# Éclair doré
+	_draw_lightning(pos, s, gold)
+
+func _draw_lightning(center: Vector2, s: float, color: Color) -> void:
+	# Forme d'éclair en zigzag vertical (8 points)
+	var bolt := PackedVector2Array([
+		center + Vector2(-s * 0.1, -s * 0.7),    # Sommet gauche
+		center + Vector2(s * 0.3, -s * 0.7),     # Sommet droit
+		center + Vector2(s * 0.05, -s * 0.15),   # Angle intérieur haut
+		center + Vector2(s * 0.35, -s * 0.15),   # Pointe droite milieu
+		center + Vector2(s * 0.1, s * 0.7),      # Pointe basse
+		center + Vector2(-s * 0.15, s * 0.1),    # Angle intérieur bas
+		center + Vector2(-s * 0.35, s * 0.1),    # Pointe gauche milieu
+		center + Vector2(-s * 0.1, -s * 0.25),   # Retour haut
+	])
+	draw_colored_polygon(bolt, color)
 
 # ===== MÉGA-MISSILE =====
+# Fusée verticale plus haute
 
 func _draw_missile(pos: Vector2, color: Color, shadow: Vector2, sf: float = 1.0) -> void:
-	var s: float = ICON_SIZE * 1.2 * sf
+	var s: float = ICON_SIZE * 1.3 * sf
 
 	# Ombre
 	draw_circle(pos + shadow, s * 0.3, Color(0, 0, 0, 0.3))
 
-	# Corps du missile (rectangle vertical)
-	var body := Rect2(pos - Vector2(s * 0.15, s * 0.6), Vector2(s * 0.3, s * 0.9))
-	draw_rect(body, color)
-
-	# Ogive (triangle)
-	var tip := PackedVector2Array([
-		pos + Vector2(0, -s * 0.8),
-		pos + Vector2(-s * 0.15, -s * 0.6),
-		pos + Vector2(s * 0.15, -s * 0.6),
+	# Corps du missile — rectangle vertical légèrement effilé
+	var corps := PackedVector2Array([
+		pos + Vector2(-s * 0.14, -s * 0.5),   # Haut gauche
+		pos + Vector2(s * 0.14, -s * 0.5),    # Haut droit
+		pos + Vector2(s * 0.17, s * 0.35),    # Bas droit (plus large)
+		pos + Vector2(-s * 0.17, s * 0.35),   # Bas gauche
 	])
-	draw_colored_polygon(tip, color.lightened(0.2))
+	draw_colored_polygon(corps, color)
 
-	# Ailerons
-	var fin_l := PackedVector2Array([
-		pos + Vector2(-s * 0.15, s * 0.2),
-		pos + Vector2(-s * 0.4, s * 0.4),
-		pos + Vector2(-s * 0.15, s * 0.3),
+	# Ogive allongée (cône pointu)
+	var ogive := PackedVector2Array([
+		pos + Vector2(0, -s * 0.85),           # Pointe
+		pos + Vector2(-s * 0.14, -s * 0.5),
+		pos + Vector2(s * 0.14, -s * 0.5),
 	])
-	var fin_r := PackedVector2Array([
-		pos + Vector2(s * 0.15, s * 0.2),
-		pos + Vector2(s * 0.4, s * 0.4),
-		pos + Vector2(s * 0.15, s * 0.3),
-	])
-	draw_colored_polygon(fin_l, color.darkened(0.2))
-	draw_colored_polygon(fin_r, color.darkened(0.2))
+	draw_colored_polygon(ogive, color.lightened(0.2))
 
-	# Symbole radioactif au centre
-	draw_circle(pos, s * 0.1, Color(1.0, 0.9, 0.0))
+	# Aileron gauche
+	var aileron_g := PackedVector2Array([
+		pos + Vector2(-s * 0.17, s * 0.2),
+		pos + Vector2(-s * 0.45, s * 0.45),
+		pos + Vector2(-s * 0.17, s * 0.35),
+	])
+	draw_colored_polygon(aileron_g, color.darkened(0.2))
+
+	# Aileron droit
+	var aileron_d := PackedVector2Array([
+		pos + Vector2(s * 0.17, s * 0.2),
+		pos + Vector2(s * 0.45, s * 0.45),
+		pos + Vector2(s * 0.17, s * 0.35),
+	])
+	draw_colored_polygon(aileron_d, color.darkened(0.2))
+
+	# Aileron central arrière
+	var aileron_c := PackedVector2Array([
+		pos + Vector2(-s * 0.06, s * 0.25),
+		pos + Vector2(0, s * 0.5),
+		pos + Vector2(s * 0.06, s * 0.25),
+	])
+	draw_colored_polygon(aileron_c, color.darkened(0.15))
+
+	# Flamme d'échappement (triangle orange-rouge)
+	var flamme := PackedVector2Array([
+		pos + Vector2(-s * 0.1, s * 0.35),
+		pos + Vector2(0, s * 0.6),
+		pos + Vector2(s * 0.1, s * 0.35),
+	])
+	draw_colored_polygon(flamme, Color(1.0, 0.4, 0.1))
+
+	# Symbole radioactif — cercle jaune au centre (légèrement plus grand)
+	draw_circle(pos + Vector2(0, -s * 0.05), s * 0.12, Color(1.0, 0.9, 0.0))

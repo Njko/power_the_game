@@ -91,9 +91,12 @@ var board_renderer: BoardRenderer
 @onready var resolution_panel: PanelContainer = $GameUI/ResolutionPanel
 @onready var resolution_log: RichTextLabel = $GameUI/ResolutionPanel/VBox/ResolutionLog
 
+const UnitInfoPanelClass = preload("res://scripts/ui/unit_info_panel.gd")
+
 var _switch_screen: PlayerSwitchScreen
 var _game_started := false
 var _phase_timeline: PhaseTimeline
+var _unit_info_panel
 
 func _ready() -> void:
 	# Cacher les éléments de jeu pendant l'écran titre
@@ -136,6 +139,7 @@ func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerCol
 
 	# Connecter les signaux du plateau
 	board_3d.sector_clicked.connect(_on_sector_clicked)
+	board_3d.sector_clicked_with_pos.connect(_on_sector_clicked_with_pos)
 	board_3d.sector_hovered.connect(_on_sector_hovered)
 
 	# Connecter les signaux du game manager
@@ -156,6 +160,19 @@ func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerCol
 	_switch_screen.visible = false
 	_switch_screen.player_ready.connect(_on_player_ready)
 	$GameUI.add_child(_switch_screen)
+
+	# Créer le panneau d'info unité
+	_unit_info_panel = UnitInfoPanelClass.new()
+	_unit_info_panel.visible = false
+	_unit_info_panel.anchor_left = 0.0
+	_unit_info_panel.anchor_right = 0.0
+	_unit_info_panel.anchor_top = 0.0
+	_unit_info_panel.anchor_bottom = 0.0
+	_unit_info_panel.offset_left = 5
+	_unit_info_panel.offset_top = 42
+	_unit_info_panel.offset_right = 185
+	_unit_info_panel.offset_bottom = 330
+	$GameUI.add_child(_unit_info_panel)
 
 	# Connecter l'animation manager au board_renderer
 	if anim_manager:
@@ -182,11 +199,24 @@ func _on_sector_clicked(sector_id: String) -> void:
 	if sector:
 		_show_sector_info(sector_id, sector)
 
-	# En phase de planification, déléguer au panneau d'ordres
+func _on_sector_clicked_with_pos(sector_id: String, screen_pos: Vector2) -> void:
+	# Chercher l'unité cliquée via le hit-test du unit_renderer
+	var unite_cliquee: UnitData = unit_renderer.get_unit_at_screen_pos(screen_pos)
+
+	# Mettre à jour le panneau d'info unité
+	if unite_cliquee != null:
+		_unit_info_panel.afficher_unite(unite_cliquee)
+	else:
+		_unit_info_panel.cacher()
+
+	# Mettre à jour la sélection visuelle sur le renderer
+	unit_renderer.selected_unit = unite_cliquee
+	unit_renderer.queue_redraw()
+
+	# En phase de planification, déléguer au panneau d'ordres avec l'unité ciblée
 	if game_manager.game_state.current_phase == GameEnums.GamePhase.PLANNING:
 		if order_panel.visible and not _switch_screen.visible:
-			order_panel.handle_sector_click(sector_id)
-		return
+			order_panel.handle_sector_click_with_unit(sector_id, unite_cliquee)
 
 func _on_sector_hovered(sector_id: String) -> void:
 	var sector: Sector = game_manager.game_state.board.get_sector(sector_id)
@@ -217,6 +247,10 @@ func _show_sector_info(sector_id: String, sector: Sector) -> void:
 # ===== GAME MANAGER CALLBACKS =====
 
 func _on_phase_changed(phase: GameEnums.GamePhase) -> void:
+	# Cacher le panneau d'info unité et reset la sélection
+	_unit_info_panel.cacher()
+	unit_renderer.selected_unit = null
+
 	# Mettre à jour la timeline visuelle
 	var timeline_index: int = -1
 	match phase:
@@ -259,6 +293,8 @@ func _on_planning_player_changed(color: GameEnums.PlayerColor) -> void:
 		game_manager.on_player_ready()
 	else:
 		# Mode hotseat: écran de transition entre joueurs
+		_unit_info_panel.cacher()
+		unit_renderer.selected_unit = null
 		_switch_screen.show_for_player(color)
 		order_panel.game_state = game_manager.game_state
 		order_panel.activate(color)

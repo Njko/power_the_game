@@ -159,6 +159,26 @@ func update_timer(seconds: float) -> void:
 
 # ===== GESTION DES CLICS SUR LE PLATEAU =====
 
+## Gère un clic avec une unité spécifique ciblée (détection per-unité)
+func handle_sector_click_with_unit(sector_id: String, clicked_unit: UnitData) -> void:
+	if game_state == null:
+		return
+
+	if _is_missile_create_mode:
+		_handle_missile_create_click(sector_id)
+		return
+
+	if _is_exchange_mode:
+		_handle_exchange_click(sector_id)
+		return
+
+	if _selected_unit == null:
+		# Étape 1: sélectionner une unité (avec préférence pour l'unité cliquée)
+		_try_select_unit(sector_id, clicked_unit)
+	else:
+		# Étape 2: choisir la destination
+		_try_set_destination(sector_id)
+
 func handle_sector_click(sector_id: String) -> void:
 	if game_state == null:
 		return
@@ -178,7 +198,7 @@ func handle_sector_click(sector_id: String) -> void:
 		# Étape 2: choisir la destination
 		_try_set_destination(sector_id)
 
-func _try_select_unit(sector_id: String) -> void:
+func _try_select_unit(sector_id: String, preferred_unit: UnitData = null) -> void:
 	var sector := game_state.board.get_sector(sector_id)
 	if sector == null:
 		return
@@ -199,12 +219,16 @@ func _try_select_unit(sector_id: String) -> void:
 		_instruction_label.text = "Pas d'unité déplaçable ici. Sélectionnez une de vos unités."
 		return
 
-	# Si plusieurs unités, prendre la première non-encore-ordonnée
+	# Si une unité préférée a été cliquée directement, l'utiliser en priorité
 	var unit_to_select: UnitData = null
-	for unit in available_units:
-		if not _has_pending_order_for(unit, sector_id):
-			unit_to_select = unit
-			break
+	if preferred_unit != null and preferred_unit in available_units:
+		unit_to_select = preferred_unit
+	else:
+		# Sinon, prendre la première non-encore-ordonnée
+		for unit in available_units:
+			if not _has_pending_order_for(unit, sector_id):
+				unit_to_select = unit
+				break
 
 	if unit_to_select == null:
 		unit_to_select = available_units[0]

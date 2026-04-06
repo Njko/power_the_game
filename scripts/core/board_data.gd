@@ -266,6 +266,12 @@ func _create_sea_island_adjacencies() -> void:
 	_add_adjacency("S3", "S8")
 	_add_adjacency("S8", "S9")
 
+	# --- Connexions île ↔ IX (passage terrestre entre territoires via îles) ---
+	_add_adjacency("IN", "IX")
+	_add_adjacency("IS", "IX")
+	_add_adjacency("IW", "IX")
+	_add_adjacency("IE", "IX")
+
 	# --- Connexions coin extérieur (via zones HQ) ---
 	_add_adjacency("S5", "S4")   # Coin HQ_V
 	_add_adjacency("S1", "S2")   # Coin HQ_B

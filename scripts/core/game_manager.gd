@@ -25,6 +25,8 @@ var _waiting_for_player_switch: bool = false
 var board_renderer: BoardRenderer
 var unit_renderer: UnitRenderer
 var anim_manager: AnimationManager
+const GameLoggerClass = preload("res://scripts/core/game_logger.gd")
+var logger
 
 # IA
 var ai_players: Dictionary = {}  # PlayerColor -> AIPlayer
@@ -50,6 +52,8 @@ func start_game(num_players: int = 4, p_human_color: GameEnums.PlayerColor = Gam
 
 	game_state.setup_game(num_players)
 	game_state.game_start_time = Time.get_unix_time_from_system()
+	logger = GameLoggerClass.new(true)
+	resolution_log.connect(logger.log_message)
 
 	# Configurer l'IA: tous les joueurs sauf le joueur humain
 	human_player = p_human_color
@@ -79,6 +83,8 @@ func start_game_hotseat(num_players: int = 4) -> void:
 
 	game_state.setup_game(num_players)
 	game_state.game_start_time = Time.get_unix_time_from_system()
+	logger = GameLoggerClass.new(true)
+	resolution_log.connect(logger.log_message)
 
 	human_player = GameEnums.PlayerColor.NONE  # Pas de joueur IA
 	ai_players.clear()
@@ -93,6 +99,8 @@ func start_game_hotseat(num_players: int = 4) -> void:
 
 func _start_round() -> void:
 	round_started.emit(game_state.current_round)
+	if logger:
+		logger.log_debut_tour(game_state.current_round, game_state)
 	_start_planning_phase()
 
 func _process(delta: float) -> void:
@@ -187,6 +195,13 @@ func _run_resolution_phases() -> void:
 	await _phase_conflict()
 	await _phase_collect_power()
 	await _phase_capture_flags()
+
+	if logger:
+		logger.log_fin_tour(game_state.current_round, game_state)
+
+	# Mettre à jour la mémoire des IA (rebonds, etc.)
+	for ai_color in ai_players:
+		ai_players[ai_color].fin_tour()
 
 	# Tour suivant ou fin de partie
 	if game_state.current_phase == GameEnums.GamePhase.GAME_OVER:
@@ -565,6 +580,9 @@ func _resolve_tie(sector_id: String, tied_players: Array[GameEnums.PlayerColor])
 					game_state.move_unit(unit, origin)
 					resolution_log.emit("  Rebond: %s retourne en %s" % [
 						unit.get_display_name(), origin])
+					# Signaler le rebond à l'IA pour éviter de répéter
+					if color in ai_players:
+						ai_players[color].signaler_rebond(sector_id)
 					if anim_manager:
 						anim_manager.play_rebond(unit.unit_type, color, sector_id, origin)
 

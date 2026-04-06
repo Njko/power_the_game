@@ -16,11 +16,34 @@ enum ModeStrategique {
 var color: GameEnums.PlayerColor
 var game_state: GameState
 var _rng := RandomNumberGenerator.new()
+var _secteurs_rebond: Dictionary = {}  # sector_id -> nombre de rebonds consécutifs
+var _derniers_ordres: Array = []  # Sauvegarde des ordres du tour précédent
 
 func _init(p_color: GameEnums.PlayerColor, p_state: GameState) -> void:
 	color = p_color
 	game_state = p_state
 	_rng.randomize()
+
+func signaler_rebond(sector_id: String) -> void:
+	## Appelé par le game_manager quand une unité de cette couleur rebondit.
+	if sector_id not in _secteurs_rebond:
+		_secteurs_rebond[sector_id] = 0
+	_secteurs_rebond[sector_id] += 1
+
+func fin_tour() -> void:
+	## Appelé en fin de tour pour mettre à jour la mémoire.
+	# Oublier les rebonds anciens (> 3 tours sans rebond)
+	var a_supprimer: Array[String] = []
+	for sid in _secteurs_rebond:
+		_secteurs_rebond[sid] -= 1
+		if _secteurs_rebond[sid] <= 0:
+			a_supprimer.append(sid)
+	for sid in a_supprimer:
+		_secteurs_rebond.erase(sid)
+
+func _est_secteur_rebond(sector_id: String) -> bool:
+	## Retourne true si ce secteur a causé un rebond récemment.
+	return sector_id in _secteurs_rebond
 
 func generate_orders() -> Array[Order]:
 	var orders: Array[Order] = []
@@ -477,12 +500,14 @@ func _avancer_troupes_coordonnees(orders: Array[Order], moved: Array[UnitData], 
 		var destination := ""
 
 		# Décision: aller au ralliement ou directement au QG?
-		if point_ralliement != "" and point_ralliement != unite.sector_id:
+		# Après le tour 10, ne plus attendre au ralliement — avancer même seul
+		var seuil_ralliement: int = 20 if game_state.current_round <= 10 else 0
+		if point_ralliement != "" and point_ralliement != unite.sector_id and seuil_ralliement > 0:
 			var dist_ralliement: int = game_state.board.get_distance(unite.sector_id, point_ralliement, unite.unit_type)
 
 			# Si l'unité est plus loin du QG que du point de ralliement,
 			# et qu'on n'a pas encore assez de puissance, aller au ralliement
-			if dist_ralliement >= 0 and dist_ralliement < dist_qg and puissance_ralliement < 20:
+			if dist_ralliement >= 0 and dist_ralliement < dist_qg and puissance_ralliement < seuil_ralliement:
 				destination = _avancer_vers(unite, point_ralliement)
 
 		# Si on a assez de puissance au ralliement (>= 20) ou si on est déjà proche, avancer vers le QG
@@ -519,13 +544,38 @@ func _trouver_point_ralliement(troupes: Array, qg_cible: String) -> String:
 func _avancer_vers(unite: UnitData, destination: String) -> String:
 	## Retourne le secteur le plus avancé sur le chemin vers la destination,
 	## en respectant le mouvement max de l'unité.
+	## Évite les secteurs qui ont causé des rebonds récemment.
 	var chemin: Array[String] = game_state.board.find_path(unite.sector_id, destination, unite.unit_type)
 	if chemin.size() < 2:
 		return ""
 
 	var max_move: int = unite.get_max_move()
 	var idx: int = mini(max_move, chemin.size() - 1)
-	return chemin[idx]
+	var cible: String = chemin[idx]
+
+	# Si la destination directe est un secteur de rebond, reculer d'un pas
+	if _est_secteur_rebond(cible) and idx > 1:
+		cible = chemin[idx - 1]
+	# Si même le pas précédent est un rebond, essayer un autre chemin
+	if _est_secteur_rebond(cible) and cible != unite.sector_id:
+		# Chercher un secteur alternatif atteignable qui rapproche du but
+		var atteignables := game_state.board.get_reachable_sectors(
+			unite.sector_id, unite.unit_type, max_move)
+		var meilleur_alt := ""
+		var meilleure_dist := 999
+		for alt_id in atteignables:
+			if _est_secteur_rebond(alt_id):
+				continue
+			if alt_id == unite.sector_id:
+				continue
+			var dist: int = game_state.board.get_distance(alt_id, destination, unite.unit_type)
+			if dist >= 0 and dist < meilleure_dist:
+				meilleure_dist = dist
+				meilleur_alt = alt_id
+		if meilleur_alt != "":
+			cible = meilleur_alt
+
+	return cible
 
 
 # ===== RAIDS AÉRIENS =====
@@ -624,9 +674,21 @@ func _positionner_navires(orders: Array[Order], moved: Array[UnitData], cible: G
 		for sid in atteignables:
 			if sid == unite.sector_id:
 				continue
+			# Éviter les secteurs de rebond
+			if _est_secteur_rebond(sid):
+				continue
 
 			var secteur := game_state.board.get_sector(sid)
 			if secteur == null:
+				continue
+
+			# Éviter les secteurs qui contiennent déjà un navire allié (empêche les swaps inutiles)
+			var a_navire_ami := false
+			for u in secteur.units:
+				if u.owner == color and GameEnums.is_naval_unit(u.unit_type):
+					a_navire_ami = true
+					break
+			if a_navire_ami:
 				continue
 
 			var score := 0

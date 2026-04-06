@@ -176,54 +176,74 @@ func _create_territory_sea_adjacencies() -> void:
 	_add_adjacency("V0", "S5")
 	_add_adjacency("V1", "S5")
 	_add_adjacency("V2", "S5")
-	_add_adjacency("V2", "S6")  # V2(3,1) ↔ S6(4,1)
+	# Bord droit (col 3) → S6 (col 4, rows 1-3)
+	_add_adjacency("V2", "S6")  # V2(3,1) ↔ S6(4,1-3)
+	_add_adjacency("V5", "S6")  # V5(3,2) ↔ S6(4,1-3)
+	_add_adjacency("V8", "S6")  # V8(3,3) ↔ S6(4,1-3)
 	# Bord gauche (col 1) → S4 (col 0, rows 1-3)
 	_add_adjacency("V0", "S4")
 	_add_adjacency("V3", "S4")
 	_add_adjacency("V6", "S4")
-	# Bord bas (row 3) → îles et jonctions
-	_add_adjacency("V6", "IW")  # V6(1,3) ↔ IW(1,4)
-	_add_adjacency("V8", "S3")  # V8(3,3) ↔ S3(3,4)
+	# Bord bas (row 3) → S3 (row 4, cols 1-3) et IW (col 0, row 4)
+	_add_adjacency("V6", "S3")  # V6(1,3) ↔ S3(1-3,4)
+	_add_adjacency("V6", "IW")  # V6(1,3) ↔ IW(0,4)
+	_add_adjacency("V7", "S3")  # V7(2,3) ↔ S3(1-3,4)
+	_add_adjacency("V8", "S3")  # V8(3,3) ↔ S3(1-3,4)
 
 	# --- Territoire BLEU (haut-droite) à (5,1)-(7,3) ---
 	# Bord haut (row 1) → S1 (row 0, cols 5-7)
 	_add_adjacency("B0", "S1")
-	_add_adjacency("B0", "S6")  # B0(5,1) ↔ S6(4,1)
 	_add_adjacency("B1", "S1")
 	_add_adjacency("B2", "S1")
+	# Bord gauche (col 5) → S6 (col 4, rows 1-3)
+	_add_adjacency("B0", "S6")  # B0(5,1) ↔ S6(4,1-3)
+	_add_adjacency("B3", "S6")  # B3(5,2) ↔ S6(4,1-3)
+	_add_adjacency("B6", "S6")  # B6(5,3) ↔ S6(4,1-3)
 	# Bord droit (col 7) → S2 (col 8, rows 1-3)
 	_add_adjacency("B2", "S2")
 	_add_adjacency("B5", "S2")
 	_add_adjacency("B8", "S2")
-	# Bord bas (row 3) → îles et jonctions
-	_add_adjacency("B6", "S9")  # B6(5,3) ↔ S9(5,4)
-	_add_adjacency("B8", "IE")  # B8(7,3) ↔ IE(7,4)
+	# Bord bas (row 3) → S9 (row 4, cols 5-7) et IE (col 8, row 4)
+	_add_adjacency("B6", "S9")  # B6(5,3) ↔ S9(5-7,4)
+	_add_adjacency("B7", "S9")  # B7(6,3) ↔ S9(5-7,4)
+	_add_adjacency("B8", "S9")  # B8(7,3) ↔ S9(5-7,4)
+	_add_adjacency("B8", "IE")  # B8(7,3) ↔ IE(8,4)
 
 	# --- Territoire JAUNE (bas-gauche) à (1,5)-(3,7) ---
 	# Bord gauche (col 1) → S12 (col 0, rows 5-7)
 	_add_adjacency("J0", "S12")
-	_add_adjacency("J0", "IW")  # J0(1,5) ↔ IW(1,4)
 	_add_adjacency("J3", "S12")
 	_add_adjacency("J6", "S12")
-	# Bord haut (row 5) → jonctions
-	_add_adjacency("J2", "S3")  # J2(3,5) ↔ S3(3,4)
+	# Bord haut (row 5) → S3 (row 4, cols 1-3) et IW (col 0, row 4)
+	_add_adjacency("J0", "S3")  # J0(1,5) ↔ S3(1-3,4)
+	_add_adjacency("J0", "IW")  # J0(1,5) ↔ IW(0,4)
+	_add_adjacency("J1", "S3")  # J1(2,5) ↔ S3(1-3,4)
+	_add_adjacency("J2", "S3")  # J2(3,5) ↔ S3(1-3,4)
+	# Bord droit (col 3) → S8 (col 4, rows 5-7)
+	_add_adjacency("J2", "S8")  # J2(3,5) ↔ S8(4,5-7)
+	_add_adjacency("J5", "S8")  # J5(3,6) ↔ S8(4,5-7)
+	_add_adjacency("J8", "S8")  # J8(3,7) ↔ S8(4,5-7)
 	# Bord bas (row 7) → S11 (row 8, cols 1-3)
 	_add_adjacency("J6", "S11")
 	_add_adjacency("J7", "S11")
 	_add_adjacency("J8", "S11")
-	_add_adjacency("J8", "S8")  # J8(3,7) ↔ S8(4,7)
 
 	# --- Territoire ROUGE (bas-droite) à (5,5)-(7,7) ---
-	# Bord haut (row 5) → jonctions et îles
-	_add_adjacency("R0", "S9")  # R0(5,5) ↔ S9(5,4)
-	_add_adjacency("R2", "IE")  # R2(7,5) ↔ IE(7,4)
+	# Bord haut (row 5) → S9 (row 4, cols 5-7) et IE (col 8, row 4)
+	_add_adjacency("R0", "S9")  # R0(5,5) ↔ S9(5-7,4)
+	_add_adjacency("R1", "S9")  # R1(6,5) ↔ S9(5-7,4)
+	_add_adjacency("R2", "S9")  # R2(7,5) ↔ S9(5-7,4)
+	_add_adjacency("R2", "IE")  # R2(7,5) ↔ IE(8,4)
+	# Bord gauche (col 5) → S8 (col 4, rows 5-7)
+	_add_adjacency("R0", "S8")  # R0(5,5) ↔ S8(4,5-7)
+	_add_adjacency("R3", "S8")  # R3(5,6) ↔ S8(4,5-7)
+	_add_adjacency("R6", "S8")  # R6(5,7) ↔ S8(4,5-7)
 	# Bord droit (col 7) → S10 (col 8, rows 5-7)
 	_add_adjacency("R2", "S10")
 	_add_adjacency("R5", "S10")
 	_add_adjacency("R8", "S10")
 	# Bord bas (row 7) → S7 (row 8, cols 5-7)
 	_add_adjacency("R6", "S7")
-	_add_adjacency("R6", "S8")  # R6(5,7) ↔ S8(4,7)
 	_add_adjacency("R7", "S7")
 	_add_adjacency("R8", "S7")
 
@@ -265,12 +285,6 @@ func _create_sea_island_adjacencies() -> void:
 	_add_adjacency("S6", "S9")
 	_add_adjacency("S3", "S8")
 	_add_adjacency("S8", "S9")
-
-	# --- Connexions île ↔ IX (passage terrestre entre territoires via îles) ---
-	_add_adjacency("IN", "IX")
-	_add_adjacency("IS", "IX")
-	_add_adjacency("IW", "IX")
-	_add_adjacency("IE", "IX")
 
 	# --- Connexions coin extérieur (via zones HQ) ---
 	_add_adjacency("S5", "S4")   # Coin HQ_V
@@ -382,6 +396,15 @@ func get_reachable_sectors(from_id: String, unit_type: GameEnums.UnitType, max_s
 		var sector: Sector = sectors.get(current_id)
 		if sector == null:
 			continue
+
+		# Règle d'arrêt: les unités terrestres ne peuvent pas traverser
+		# une île ou un QG dans le même tour (elles doivent s'y arrêter).
+		# Si on vient d'entrer sur une île/QG (steps > 0 et ce n'est pas le départ),
+		# on ne peut pas continuer ce tour.
+		var est_terrestre: bool = GameEnums.is_land_unit(unit_type)
+		if est_terrestre and steps > 0 and current_id != from_id:
+			if sector.sector_type == GameEnums.SectorType.ISLAND or sector.sector_type == GameEnums.SectorType.HQ:
+				continue  # Arrêt forcé, pas d'exploration au-delà
 
 		for neighbor_id in sector.adjacent_sectors:
 			if neighbor_id in visited:

@@ -191,16 +191,32 @@ func _animate_rebond(anim: Dictionary) -> void:
 	var abbr: String = GameEnums.get_unit_abbreviation(anim["unit_type"])
 
 	var token: Node2D = _create_unit_token(abbr, color, from_pos)
+	# Teinte rouge pour indiquer le rebond
+	token.modulate = Color(1.0, 0.5, 0.5)
 
-	# Aller vers la destination puis rebondir en arrière
-	var duration: float = MOVE_DURATION * 0.5 / speed_multiplier
+	# Indicateur ↩ au-dessus du token
+	var rebond_label := Label.new()
+	rebond_label.text = "↩"
+	rebond_label.add_theme_font_size_override("font_size", 16)
+	rebond_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+	rebond_label.position = Vector2(-8, -28)
+	rebond_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	token.add_child(rebond_label)
+
+	# Durée 1.5x plus longue qu'un déplacement normal
+	var duration: float = MOVE_DURATION * 1.5 / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
 
+	# Flash rouge au début
+	tween.tween_property(token, "modulate", Color(1.0, 0.2, 0.2), duration * 0.15)
+	tween.tween_property(token, "modulate", Color(1.0, 0.5, 0.5), duration * 0.15)
+
+	# Aller vers la destination puis rebondir en arrière
 	var mid_pos: Vector2 = from_pos.lerp(to_pos, 0.3)
-	tween.tween_property(token, "position", mid_pos, duration) \
+	tween.tween_property(token, "position", mid_pos, duration * 0.35) \
 		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tween.tween_property(token, "position", to_pos, duration) \
+	tween.tween_property(token, "position", to_pos, duration * 0.35) \
 		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_BACK)
 	tween.tween_callback(func():
 		token.queue_free()
@@ -341,27 +357,54 @@ func _animate_flag_capture(anim: Dictionary) -> void:
 	)
 
 func _animate_phase_title(anim: Dictionary) -> void:
-	var label := Label.new()
-	label.text = anim["text"]
-	label.add_theme_font_size_override("font_size", 22)
-	label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.2))
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var text: String = anim["text"]
 	var vp_size := get_viewport().get_visible_rect().size
-	label.position = Vector2(vp_size.x / 2 - 100, vp_size.y / 2)
-	label.modulate.a = 0
-	_screen_overlay.add_child(label)
 
-	var duration := PHASE_TRANSITION_DURATION / speed_multiplier
+	# Couleur selon la phase
+	var text_color: Color = _get_phase_color(text)
+
+	# Conteneur pour grouper fond + texte (facilite le fondu global)
+	var container := Control.new()
+	container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	container.modulate.a = 0
+	_screen_overlay.add_child(container)
+
+	# Barre de fond semi-transparente
+	var bg_bar := ColorRect.new()
+	bg_bar.color = Color(0, 0, 0, 0.5)
+	var bar_height := 70.0
+	bg_bar.size = Vector2(vp_size.x, bar_height)
+	bg_bar.position = Vector2(0, vp_size.y / 2.0 - bar_height / 2.0)
+	bg_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(bg_bar)
+
+	# Texte centré précisément
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 36)
+	label.add_theme_color_override("font_color", text_color)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# Calculer la taille du texte pour centrer correctement
+	var font: Font = label.get_theme_font("font")
+	var text_size: Vector2 = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 36)
+	label.position = Vector2(vp_size.x / 2.0 - text_size.x / 2.0, vp_size.y / 2.0 - text_size.y / 2.0)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container.add_child(label)
+
+	var duration := 1.5 / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
 
-	tween.tween_property(label, "modulate:a", 1.0, duration * 0.3)
-	tween.tween_property(label, "position:y", vp_size.y / 2 - 20, duration * 0.3) \
-		.set_ease(Tween.EASE_OUT)
-	tween.tween_interval(duration * 0.4)
-	tween.tween_property(label, "modulate:a", 0.0, duration * 0.3)
+	# Fondu entrant (20% de la durée)
+	tween.tween_property(container, "modulate:a", 1.0, duration * 0.2)
+	# Maintien (50% de la durée)
+	tween.tween_interval(duration * 0.5)
+	# Fondu sortant (30% de la durée)
+	tween.tween_property(container, "modulate:a", 0.0, duration * 0.3)
 	tween.tween_callback(func():
-		label.queue_free()
+		container.queue_free()
 		_active_tweens.erase(tween)
 		_play_next()
 	)
@@ -374,33 +417,54 @@ func _create_unit_token(abbr: String, color: Color, pos: Vector2) -> Node2D:
 	token.z_index = 15
 	_world_overlay.add_child(token)
 
-	# Fond arrondi
+	# Taille selon l'importance de l'unité (basée sur l'abréviation)
+	var size := 28.0
+	if abbr == "M" or abbr == "RG" or abbr == "CR":
+		size = 34.0  # Unités puissantes
+	elif abbr == "CL" or abbr == "BM" or abbr == "DS":
+		size = 30.0  # Unités moyennes
+
+	# Ombre portée (cercle décalé)
+	var shadow_panel := Panel.new()
+	shadow_panel.custom_minimum_size = Vector2(size, size)
+	shadow_panel.size = Vector2(size, size)
+	shadow_panel.position = Vector2(-size / 2.0 + 2, -size / 2.0 + 2)
+	shadow_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var shadow_style := StyleBoxFlat.new()
+	shadow_style.bg_color = Color(0, 0, 0, 0.35)
+	shadow_style.set_corner_radius_all(int(size / 2.0))
+	shadow_style.set_content_margin_all(0)
+	shadow_panel.add_theme_stylebox_override("panel", shadow_style)
+	shadow_panel.z_index = -1
+	token.add_child(shadow_panel)
+
+	# Fond circulaire (coin arrondi au max = cercle)
 	var bg := Panel.new()
-	bg.size = Vector2(30, 20)
-	bg.position = Vector2(-15, -10)
+	bg.custom_minimum_size = Vector2(size, size)
+	bg.size = Vector2(size, size)
+	bg.position = Vector2(-size / 2.0, -size / 2.0)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var style := StyleBoxFlat.new()
 	style.bg_color = color.darkened(0.2)
-	style.border_color = Color(1, 1, 1, 0.5)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(3)
+	style.border_color = color.lightened(0.3)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(int(size / 2.0))
+	style.set_content_margin_all(0)
 	bg.add_theme_stylebox_override("panel", style)
 	token.add_child(bg)
 
-	# Texte
+	# Abréviation centrée
 	var label := Label.new()
 	label.text = abbr
-	label.add_theme_font_size_override("font_size", 12)
+	var font_size: int = 11 if abbr.length() <= 2 else 9
+	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", Color.WHITE)
-	label.position = Vector2(-12, -9)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.size = Vector2(size, size)
+	label.position = Vector2(-size / 2.0, -size / 2.0)
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	token.add_child(label)
-
-	# Ombre portée subtile
-	var shadow := ColorRect.new()
-	shadow.color = Color(0, 0, 0, 0.3)
-	shadow.size = Vector2(30, 20)
-	shadow.position = Vector2(-13, -8)
-	shadow.z_index = -1
-	token.add_child(shadow)
 
 	return token
 
@@ -469,6 +533,22 @@ func _cleanup_overlay() -> void:
 		child.queue_free()
 	for child in _screen_overlay.get_children():
 		child.queue_free()
+
+func _get_phase_color(phase_text: String) -> Color:
+	## Retourne la couleur associée à une phase selon son nom.
+	var lower: String = phase_text.to_lower()
+	if lower.find("préparation") >= 0 or lower.find("preparation") >= 0:
+		return Color(0.4, 0.7, 1.0)      # Bleu
+	elif lower.find("exécution") >= 0 or lower.find("execution") >= 0:
+		return Color(1.0, 0.75, 0.2)     # Or
+	elif lower.find("résolution") >= 0 or lower.find("conflit") >= 0:
+		return Color(1.0, 0.4, 0.2)      # Rouge-orangé
+	elif lower.find("collecte") >= 0:
+		return Color(1.0, 0.9, 0.3)      # Jaune
+	elif lower.find("capture") >= 0:
+		return Color(0.3, 0.9, 0.4)      # Vert
+	else:
+		return Color(1.0, 0.75, 0.2)     # Or par défaut
 
 func _color_name(c: GameEnums.PlayerColor) -> String:
 	match c:

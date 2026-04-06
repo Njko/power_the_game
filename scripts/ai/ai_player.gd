@@ -379,13 +379,9 @@ func _rush_infanterie_vers_qg(orders: Array[Order], moved: Array[UnitData], cibl
 		if unite in moved:
 			continue
 
-		var chemin: Array[String] = game_state.board.find_path(unite.sector_id, qg_cible, unite.unit_type)
-		if chemin.size() < 2:
+		var destination: String = _avancer_vers(unite, qg_cible)
+		if destination == "" or destination == unite.sector_id:
 			continue
-
-		var max_move: int = unite.get_max_move()
-		var idx_cible: int = mini(max_move, chemin.size() - 1)
-		var destination: String = chemin[idx_cible]
 
 		var order := Order.create_move(color, unite.unit_type, unite.sector_id, destination)
 		orders.append(order)
@@ -423,13 +419,9 @@ func _defendre_qg(orders: Array[Order], moved: Array[UnitData]) -> void:
 		if unite in moved:
 			continue
 
-		var chemin: Array[String] = game_state.board.find_path(unite.sector_id, qg_id, unite.unit_type)
-		if chemin.size() < 2:
+		var destination: String = _avancer_vers(unite, qg_id)
+		if destination == "" or destination == unite.sector_id:
 			continue
-
-		var max_move: int = unite.get_max_move()
-		var idx_cible: int = mini(max_move, chemin.size() - 1)
-		var destination: String = chemin[idx_cible]
 
 		var order := Order.create_move(color, unite.unit_type, unite.sector_id, destination)
 		orders.append(order)
@@ -542,40 +534,43 @@ func _trouver_point_ralliement(troupes: Array, qg_cible: String) -> String:
 
 
 func _avancer_vers(unite: UnitData, destination: String) -> String:
-	## Retourne le secteur le plus avancé sur le chemin vers la destination,
-	## en respectant le mouvement max de l'unité.
-	## Évite les secteurs qui ont causé des rebonds récemment.
-	var chemin: Array[String] = game_state.board.find_path(unite.sector_id, destination, unite.unit_type)
-	if chemin.size() < 2:
+	## Retourne le secteur atteignable ce tour qui rapproche le plus de la destination.
+	## Respecte la règle d'arrêt île/QG et évite les secteurs de rebond.
+	var max_move: int = unite.get_max_move()
+	var atteignables := game_state.board.get_reachable_sectors(
+		unite.sector_id, unite.unit_type, max_move)
+
+	if atteignables.is_empty():
 		return ""
 
-	var max_move: int = unite.get_max_move()
-	var idx: int = mini(max_move, chemin.size() - 1)
-	var cible: String = chemin[idx]
+	# Si la destination est directement atteignable, y aller
+	if destination in atteignables and not _est_secteur_rebond(destination):
+		return destination
 
-	# Si la destination directe est un secteur de rebond, reculer d'un pas
-	if _est_secteur_rebond(cible) and idx > 1:
-		cible = chemin[idx - 1]
-	# Si même le pas précédent est un rebond, essayer un autre chemin
-	if _est_secteur_rebond(cible) and cible != unite.sector_id:
-		# Chercher un secteur alternatif atteignable qui rapproche du but
-		var atteignables := game_state.board.get_reachable_sectors(
-			unite.sector_id, unite.unit_type, max_move)
-		var meilleur_alt := ""
-		var meilleure_dist := 999
-		for alt_id in atteignables:
-			if _est_secteur_rebond(alt_id):
+	# Sinon, choisir le secteur atteignable qui minimise la distance au but
+	var meilleur := ""
+	var meilleure_dist := 999
+	for sid in atteignables:
+		if sid == unite.sector_id:
+			continue
+		if _est_secteur_rebond(sid):
+			continue
+		var dist: int = game_state.board.get_distance(sid, destination, unite.unit_type)
+		if dist >= 0 and dist < meilleure_dist:
+			meilleure_dist = dist
+			meilleur = sid
+
+	# Fallback: si tous les secteurs sont des rebonds, accepter n'importe quel atteignable
+	if meilleur == "":
+		for sid in atteignables:
+			if sid == unite.sector_id:
 				continue
-			if alt_id == unite.sector_id:
-				continue
-			var dist: int = game_state.board.get_distance(alt_id, destination, unite.unit_type)
+			var dist: int = game_state.board.get_distance(sid, destination, unite.unit_type)
 			if dist >= 0 and dist < meilleure_dist:
 				meilleure_dist = dist
-				meilleur_alt = alt_id
-		if meilleur_alt != "":
-			cible = meilleur_alt
+				meilleur = sid
 
-	return cible
+	return meilleur
 
 
 # ===== RAIDS AÉRIENS =====

@@ -3,6 +3,76 @@ extends Node
 ## Scène racine du jeu Power.
 ## Orchestre les composants: plateau, unités, game manager, UI, ordres.
 
+# ===== CLASSE INTERNE: PhaseTimeline =====
+
+class PhaseTimeline extends Control:
+	## Widget visuel affichant la progression des phases du tour.
+
+	const TIMELINE_GOLD := Color(1.0, 0.75, 0.2)
+	const TIMELINE_GRAY := Color(0.4, 0.4, 0.5)
+	const TIMELINE_BG_LINE := Color(0.25, 0.25, 0.35)
+	const PHASE_NAMES: Array[String] = ["Plan", "Ordres", "Combat", "Power", "Flags"]
+	const POINT_RADIUS := 5.0
+	const CURRENT_RADIUS := 7.0
+
+	var _phase_index: int = -1
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(350, 38)
+
+	func set_phase(index: int) -> void:
+		_phase_index = index
+		queue_redraw()
+
+	func _draw() -> void:
+		var nb_phases: int = PHASE_NAMES.size()
+		var marge_x := 30.0
+		var largeur_utile: float = size.x - marge_x * 2.0
+		var espacement: float = largeur_utile / float(nb_phases - 1)
+		var centre_y := size.y * 0.35
+
+		# Dessiner les segments de ligne entre les points
+		for i in range(nb_phases - 1):
+			var x_debut: float = marge_x + espacement * float(i)
+			var x_fin: float = marge_x + espacement * float(i + 1)
+			var couleur_ligne: Color
+			if _phase_index >= 0 and i < _phase_index:
+				couleur_ligne = TIMELINE_GOLD
+			else:
+				couleur_ligne = TIMELINE_BG_LINE
+			draw_line(Vector2(x_debut, centre_y), Vector2(x_fin, centre_y), couleur_ligne, 2.0)
+
+		# Dessiner les points et les labels
+		var font: Font = ThemeDB.fallback_font
+		var taille_police := 10
+		for i in range(nb_phases):
+			var x: float = marge_x + espacement * float(i)
+			var pos := Vector2(x, centre_y)
+
+			if _phase_index >= 0 and i < _phase_index:
+				# Phase passée: cercle plein doré
+				draw_circle(pos, POINT_RADIUS, TIMELINE_GOLD)
+			elif _phase_index >= 0 and i == _phase_index:
+				# Phase courante: cercle plus grand avec halo
+				draw_circle(pos, CURRENT_RADIUS + 3.0, Color(TIMELINE_GOLD, 0.15))
+				draw_circle(pos, CURRENT_RADIUS, TIMELINE_GOLD)
+			else:
+				# Phase future: cercle creux gris
+				draw_arc(pos, POINT_RADIUS, 0, TAU, 32, TIMELINE_GRAY, 1.5)
+
+			# Label sous le point
+			var couleur_texte: Color
+			if _phase_index >= 0 and i <= _phase_index:
+				couleur_texte = TIMELINE_GOLD
+			else:
+				couleur_texte = TIMELINE_GRAY
+			var nom: String = PHASE_NAMES[i]
+			var taille_texte: Vector2 = font.get_string_size(nom, HORIZONTAL_ALIGNMENT_CENTER, -1, taille_police)
+			var pos_texte := Vector2(x - taille_texte.x * 0.5, centre_y + CURRENT_RADIUS + 4.0 + taille_texte.y * 0.7)
+			draw_string(font, pos_texte, nom, HORIZONTAL_ALIGNMENT_LEFT, -1, taille_police, couleur_texte)
+
+# ===== FIN CLASSE INTERNE =====
+
 @onready var board_3d = $Board3D  # Board3D
 @onready var unit_renderer: UnitRenderer = $UnitOverlay/UnitRenderer
 @onready var game_manager: Node = $GameManager
@@ -23,6 +93,7 @@ var board_renderer: BoardRenderer
 
 var _switch_screen: PlayerSwitchScreen
 var _game_started := false
+var _phase_timeline: PhaseTimeline
 
 func _ready() -> void:
 	# Cacher les éléments de jeu pendant l'écran titre
@@ -30,6 +101,15 @@ func _ready() -> void:
 	$UnitOverlay.visible = false
 	$AnimOverlay.visible = false
 	$GameUI.visible = false
+
+	# Remplacer PhaseLabel par le widget PhaseTimeline
+	phase_label.visible = false
+	_phase_timeline = PhaseTimeline.new()
+	_phase_timeline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var hbox: HBoxContainer = phase_label.get_parent()
+	var idx_label: int = phase_label.get_index()
+	hbox.add_child(_phase_timeline)
+	hbox.move_child(_phase_timeline, idx_label + 1)
 
 	# Récupérer le board_renderer créé dynamiquement par Board3D
 	board_renderer = board_3d.board_renderer
@@ -137,31 +217,34 @@ func _show_sector_info(sector_id: String, sector: Sector) -> void:
 # ===== GAME MANAGER CALLBACKS =====
 
 func _on_phase_changed(phase: GameEnums.GamePhase) -> void:
+	# Mettre à jour la timeline visuelle
+	var timeline_index: int = -1
 	match phase:
 		GameEnums.GamePhase.PLANNING:
-			phase_label.text = "Préparation des ordres"
+			timeline_index = 0
 			resolution_panel.visible = false
 		GameEnums.GamePhase.EXECUTION:
-			phase_label.text = "Exécution des ordres"
+			timeline_index = 1
 			order_panel.deactivate()
 			# Ouvrir le log de résolution et le vider
 			resolution_log.clear()
 			resolution_panel.visible = true
-			_log_header("Exécution des ordres - Manche %d" % game_manager.game_state.current_round)
+			_log_header("Exécution des ordres - Tour %d" % game_manager.game_state.current_round)
 		GameEnums.GamePhase.CONFLICT:
-			phase_label.text = "Résolution des conflits"
+			timeline_index = 2
 			_log_header("Résolution des conflits")
 		GameEnums.GamePhase.COLLECT_POWER:
-			phase_label.text = "Collecte des Power"
+			timeline_index = 3
 			_log_header("Collecte des Power")
 		GameEnums.GamePhase.CAPTURE_FLAGS:
-			phase_label.text = "Capture des drapeaux"
+			timeline_index = 4
 		GameEnums.GamePhase.GAME_OVER:
-			phase_label.text = "FIN DE PARTIE"
+			timeline_index = 4
 			_log_header("FIN DE PARTIE")
+	_phase_timeline.set_phase(timeline_index)
 
 func _on_round_started(round_number: int) -> void:
-	round_label.text = "Manche %d" % round_number
+	round_label.text = "Tour %d" % round_number
 
 func _on_planning_player_changed(color: GameEnums.PlayerColor) -> void:
 	# Ne pas afficher les UI pour les joueurs IA
@@ -200,7 +283,7 @@ func _on_flag_captured(capturer: GameEnums.PlayerColor, captured: GameEnums.Play
 func _on_game_over(winner: GameEnums.PlayerColor) -> void:
 	var msg := "VICTOIRE DE %s!" % _color_name(winner)
 	info_label.text = msg
-	phase_label.text = "FIN DE PARTIE"
+	_phase_timeline.set_phase(4)
 
 	# Afficher le score final dans le log
 	_log_header("VICTOIRE DE %s" % _color_name(winner))

@@ -359,19 +359,19 @@ func _colorize_log(message: String) -> String:
 
 	# Combat gagné
 	if "gagne" in message and "Combat" in message:
-		return "[color=#66CCFF]⚔ %s[/color]" % message
+		return "[color=#66CCFF][X] %s[/color]" % message
 
 	# Égalité / rebond
 	if "Égalité" in message or "Rebond" in message or "rebond" in message:
-		return "[color=#CCCC66]↩ %s[/color]" % message
+		return "[color=#CCCC66]<< %s[/color]" % message
 
 	# Power gagné
 	if "Power" in message and "gagne" in message:
-		return "[color=#FFCC00]★ %s[/color]" % message
+		return "[color=#FFCC00](*) %s[/color]" % message
 
 	# Drapeau capturé
 	if "DRAPEAU" in message or "drapeau" in message:
-		return "[color=#FF6600][b]⚑ %s[/b][/color]" % message
+		return "[color=#FF6600][b]!! %s[/b][/color]" % message
 
 	# IA
 	if message.begins_with("IA "):

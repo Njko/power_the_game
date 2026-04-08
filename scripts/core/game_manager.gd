@@ -263,7 +263,7 @@ func _execute_player_orders(player: PlayerData) -> void:
 			var check: Dictionary = arbiter.valider_ordre(order, player)
 			if not check.valide:
 				push_warning("VIOLATION: %s" % check.raison)
-				resolution_log.emit("⚠ VIOLATION: %s" % check.raison)
+				resolution_log.emit("/!\ VIOLATION: %s" % check.raison)
 		if _validate_and_execute_order(order, player):
 			valid_count += 1
 			resolution_log.emit("  OK: %s" % order.get_description())
@@ -568,7 +568,7 @@ func _resolve_combat(sector_id: String, players_present: Array[GameEnums.PlayerC
 			var check: Dictionary = arbiter.valider_combat(sector_id, winner, powers)
 			if not check.valide:
 				push_warning("VIOLATION COMBAT: %s" % check.raison)
-				resolution_log.emit("⚠ VIOLATION COMBAT: %s" % check.raison)
+				resolution_log.emit("/!\ VIOLATION COMBAT: %s" % check.raison)
 		resolution_log.emit("Combat en %s: %s gagne (puissance %d)" % [
 			sector_id, _color_name(winner), max_power])
 		_capture_pieces_from_combat(sector_id, winner, players_present)
@@ -582,7 +582,7 @@ func _resolve_combat(sector_id: String, players_present: Array[GameEnums.PlayerC
 			var check: Dictionary = arbiter.valider_combat(sector_id, GameEnums.PlayerColor.NONE, powers)
 			if not check.valide:
 				push_warning("VIOLATION COMBAT: %s" % check.raison)
-				resolution_log.emit("⚠ VIOLATION COMBAT: %s" % check.raison)
+				resolution_log.emit("/!\ VIOLATION COMBAT: %s" % check.raison)
 		resolution_log.emit("Égalité en %s: rebond!" % sector_id)
 		_resolve_tie(sector_id, max_players)
 		return true
@@ -660,7 +660,7 @@ func _collect_power_for_player(color: GameEnums.PlayerColor) -> void:
 				var check: Dictionary = arbiter.valider_collecte_power(color)
 				if not check.valide:
 					push_warning("VIOLATION POWER: %s" % check.raison)
-					resolution_log.emit("⚠ VIOLATION POWER: %s" % check.raison)
+					resolution_log.emit("/!\ VIOLATION POWER: %s" % check.raison)
 			var power := UnitData.new(GameEnums.UnitType.POWER, color, "")
 			game_state.all_units.append(power)
 			player.add_to_reserve(power)
@@ -713,7 +713,7 @@ func _check_flag_captures(attacker: GameEnums.PlayerColor) -> void:
 			var check: Dictionary = arbiter.valider_capture_drapeau(attacker, enemy_color)
 			if not check.valide:
 				push_warning("VIOLATION DRAPEAU: %s" % check.raison)
-				resolution_log.emit("⚠ VIOLATION DRAPEAU: %s" % check.raison)
+				resolution_log.emit("/!\ VIOLATION DRAPEAU: %s" % check.raison)
 
 		_capture_flag(attacker, enemy_color)
 

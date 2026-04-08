@@ -590,7 +590,7 @@ func _update_missile_ui() -> void:
 	lines += "Total: %d/100" % _missile_total_power
 
 	if _missile_total_power >= 100:
-		lines += " ✓ Cliquez Confirmer pour créer!"
+		lines += " [OK] Cliquez Confirmer pour creer!"
 	else:
 		lines += " (ajoutez des unités avec +/-)"
 

@@ -23,12 +23,14 @@ func _ready() -> void:
 	vbox.add_theme_constant_override("separation", 16)
 	center.add_child(vbox)
 
-	# Icône
-	var icon := Label.new()
-	icon.text = "⬥"
-	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon.add_theme_font_size_override("font_size", 48)
-	vbox.add_child(icon)
+	# Icône diamant
+	var icon_container := CenterContainer.new()
+	var icon := TextureRect.new()
+	icon.texture = preload("res://assets/icons/icon_diamond.png")
+	icon.custom_minimum_size = Vector2(48, 48)
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon_container.add_child(icon)
+	vbox.add_child(icon_container)
 
 	_label = Label.new()
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

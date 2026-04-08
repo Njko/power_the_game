@@ -21,6 +21,11 @@ var _animation_queue: Array[Dictionary] = []
 var _is_playing := false
 var speed_multiplier := 1.0
 
+# Icônes préchargées (remplacent les emojis pour compatibilité Web)
+var _icon_rebound: Texture2D = preload("res://assets/icons/icon_rebound.png")
+var _icon_combat: Texture2D = preload("res://assets/icons/icon_combat.png")
+var _icon_explosion: Texture2D = preload("res://assets/icons/icon_explosion.png")
+
 # Overlay monde (pour déplacements, combats — coordonnées plateau)
 var _world_overlay: Node2D
 # Overlay écran (pour titres, messages — coordonnées écran)
@@ -221,14 +226,13 @@ func _animate_rebonds_parallel(rebonds: Array[Dictionary]) -> void:
 		token.modulate = Color(1.0, 0.6, 0.6)
 		tokens.append(token)
 
-		# Indicateur ↩
-		var rebond_label := Label.new()
-		rebond_label.text = "↩"
-		rebond_label.add_theme_font_size_override("font_size", 16)
-		rebond_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-		rebond_label.position = Vector2(-8, -28)
-		rebond_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		token.add_child(rebond_label)
+		# Indicateur rebond (icône)
+		var rebond_icon := TextureRect.new()
+		rebond_icon.texture = _icon_rebound
+		rebond_icon.size = Vector2(16, 16)
+		rebond_icon.position = Vector2(-8, -28)
+		rebond_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		token.add_child(rebond_icon)
 
 		# Arc
 		var size := 28.0
@@ -513,11 +517,11 @@ func _create_flash(pos: Vector2, color: Color) -> Node2D:
 	rect.position = Vector2(-25, -25)
 	flash.add_child(rect)
 
-	# Croix de combat
-	var cross := Label.new()
-	cross.text = "⚔"
-	cross.add_theme_font_size_override("font_size", 24)
-	cross.position = Vector2(-12, -16)
+	# Icône combat
+	var cross := TextureRect.new()
+	cross.texture = _icon_combat
+	cross.size = Vector2(24, 24)
+	cross.position = Vector2(-12, -12)
 	flash.add_child(cross)
 
 	return flash
@@ -550,11 +554,11 @@ func _create_explosion_effect(pos: Vector2) -> Node2D:
 	core.position = Vector2(-15, -15)
 	explosion.add_child(core)
 
-	# Symbole
-	var symbol := Label.new()
-	symbol.text = "💥"
-	symbol.add_theme_font_size_override("font_size", 20)
-	symbol.position = Vector2(-12, -14)
+	# Icône explosion
+	var symbol := TextureRect.new()
+	symbol.texture = _icon_explosion
+	symbol.size = Vector2(24, 24)
+	symbol.position = Vector2(-12, -12)
 	explosion.add_child(symbol)
 
 	return explosion

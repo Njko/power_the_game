@@ -133,12 +133,18 @@ func _play_next() -> void:
 		animation_finished.emit()
 		return
 
+	# Regrouper les rebonds consécutifs pour les jouer en parallèle
+	if _animation_queue[0]["type"] == "rebond":
+		var rebonds: Array[Dictionary] = []
+		while not _animation_queue.is_empty() and _animation_queue[0]["type"] == "rebond":
+			rebonds.append(_animation_queue.pop_front())
+		_animate_rebonds_parallel(rebonds)
+		return
+
 	var anim: Dictionary = _animation_queue.pop_front()
 	match anim["type"]:
 		"move":
 			_animate_move(anim)
-		"rebond":
-			_animate_rebond(anim)
 		"combat":
 			_animate_combat(anim)
 		"capture":
@@ -169,60 +175,85 @@ func _animate_move(anim: Dictionary) -> void:
 	# Créer un sprite temporaire
 	var token: Node2D = _create_unit_token(abbr, color, from_pos)
 
+	# Arc parabolique — hauteur = 3× taille du pion
+	var size := 28.0
+	if abbr == "M" or abbr == "RG" or abbr == "CR":
+		size = 34.0
+	elif abbr == "CL" or abbr == "BM" or abbr == "DS":
+		size = 30.0
+	var arc_height: float = size * 3.0
+
+	# Flèche de trajectoire
+	var arrow: Line2D = _create_move_arrow(from_pos, to_pos, arc_height, color)
+
 	var duration: float = MOVE_DURATION / speed_multiplier
 	var tween := create_tween()
 	_active_tweens.append(tween)
-	tween.tween_property(token, "position", to_pos, duration) \
-		.set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
+	tween.tween_method(func(t: float) -> void:
+		token.position = from_pos.lerp(to_pos, t) + Vector2(0, -arc_height * sin(t * PI))
+	, 0.0, 1.0, duration).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
 	tween.tween_callback(func():
 		token.queue_free()
+		arrow.queue_free()
 		_active_tweens.erase(tween)
 		_play_next()
 	)
 
-func _animate_rebond(anim: Dictionary) -> void:
+func _animate_rebonds_parallel(rebonds: Array[Dictionary]) -> void:
+	## Joue tous les rebonds simultanément — chaque pièce fait un arc vers son origine.
 	if board_renderer == null:
 		_play_next()
 		return
 
-	var from_pos: Vector2 = board_renderer.get_sector_position(anim["from"])
-	var to_pos: Vector2 = board_renderer.get_sector_position(anim["to"])
-	var color: Color = GameEnums.get_player_color(anim["owner"])
-	var abbr: String = GameEnums.get_unit_abbreviation(anim["unit_type"])
+	var duration: float = MOVE_DURATION / speed_multiplier
+	var tokens: Array[Node2D] = []
+	var arrows: Array[Line2D] = []
+	var state := {"finished": 0}
+	var total: int = rebonds.size()
 
-	var token: Node2D = _create_unit_token(abbr, color, from_pos)
-	# Teinte rouge pour indiquer le rebond
-	token.modulate = Color(1.0, 0.5, 0.5)
+	for anim in rebonds:
+		var from_pos: Vector2 = board_renderer.get_sector_position(anim["from"])
+		var to_pos: Vector2 = board_renderer.get_sector_position(anim["to"])
+		var color: Color = GameEnums.get_player_color(anim["owner"])
+		var abbr: String = GameEnums.get_unit_abbreviation(anim["unit_type"])
 
-	# Indicateur ↩ au-dessus du token
-	var rebond_label := Label.new()
-	rebond_label.text = "↩"
-	rebond_label.add_theme_font_size_override("font_size", 16)
-	rebond_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
-	rebond_label.position = Vector2(-8, -28)
-	rebond_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	token.add_child(rebond_label)
+		var token: Node2D = _create_unit_token(abbr, color, from_pos)
+		token.modulate = Color(1.0, 0.6, 0.6)
+		tokens.append(token)
 
-	# Durée 1.5x plus longue qu'un déplacement normal
-	var duration: float = MOVE_DURATION * 1.5 / speed_multiplier
-	var tween := create_tween()
-	_active_tweens.append(tween)
+		# Indicateur ↩
+		var rebond_label := Label.new()
+		rebond_label.text = "↩"
+		rebond_label.add_theme_font_size_override("font_size", 16)
+		rebond_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3))
+		rebond_label.position = Vector2(-8, -28)
+		rebond_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		token.add_child(rebond_label)
 
-	# Flash rouge au début
-	tween.tween_property(token, "modulate", Color(1.0, 0.2, 0.2), duration * 0.15)
-	tween.tween_property(token, "modulate", Color(1.0, 0.5, 0.5), duration * 0.15)
+		# Arc
+		var size := 28.0
+		if abbr == "M" or abbr == "RG" or abbr == "CR":
+			size = 34.0
+		elif abbr == "CL" or abbr == "BM" or abbr == "DS":
+			size = 30.0
+		var arc_height: float = size * 3.0
 
-	# Aller vers la destination puis rebondir en arrière
-	var mid_pos: Vector2 = from_pos.lerp(to_pos, 0.3)
-	tween.tween_property(token, "position", mid_pos, duration * 0.35) \
-		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
-	tween.tween_property(token, "position", to_pos, duration * 0.35) \
-		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_BACK)
-	tween.tween_callback(func():
-		token.queue_free()
-		_active_tweens.erase(tween)
-		_play_next()
-	)
+		var arrow: Line2D = _create_move_arrow(from_pos, to_pos, arc_height, Color(1.0, 0.4, 0.4, 0.5))
+		arrows.append(arrow)
+
+		var tween := create_tween()
+		_active_tweens.append(tween)
+		tween.tween_method(func(t: float) -> void:
+			token.position = from_pos.lerp(to_pos, t) + Vector2(0, -arc_height * sin(t * PI))
+		, 0.0, 1.0, duration).set_ease(Tween.EASE_IN_OUT).set_trans(Tween.TRANS_CUBIC)
+		tween.tween_callback(func():
+			token.queue_free()
+			arrow.queue_free()
+			_active_tweens.erase(tween)
+			state["finished"] += 1
+			if state["finished"] >= total:
+				_play_next()
+		)
 
 func _animate_combat(anim: Dictionary) -> void:
 	if board_renderer == null:
@@ -527,6 +558,50 @@ func _create_explosion_effect(pos: Vector2) -> Node2D:
 	explosion.add_child(symbol)
 
 	return explosion
+
+func _create_move_arrow(from_pos: Vector2, to_pos: Vector2, arc_height: float, color: Color) -> Line2D:
+	## Crée une flèche en arc montrant la trajectoire du mouvement.
+	var line := Line2D.new()
+	line.z_index = 14  # Sous le token (z_index 15)
+	line.width = 3.0
+	line.default_color = Color(color.r, color.g, color.b, 0.5)
+	line.antialiased = true
+
+	# Échantillonner 20 points le long de l'arc
+	var num_points := 20
+	for i in range(num_points + 1):
+		var t: float = float(i) / float(num_points)
+		var point: Vector2 = from_pos.lerp(to_pos, t) + Vector2(0, -arc_height * sin(t * PI))
+		line.add_point(point)
+
+	_world_overlay.add_child(line)
+
+	# Pointe de flèche au bout
+	_add_arrowhead(line, color)
+
+	return line
+
+func _add_arrowhead(line: Line2D, color: Color) -> void:
+	## Ajoute un triangle (pointe de flèche) à l'extrémité d'un Line2D.
+	var count: int = line.get_point_count()
+	if count < 2:
+		return
+
+	var tip: Vector2 = line.get_point_position(count - 1)
+	var prev: Vector2 = line.get_point_position(count - 2)
+	var direction: Vector2 = (tip - prev).normalized()
+	var perp: Vector2 = Vector2(-direction.y, direction.x)
+
+	var arrow_size := 8.0
+	var p1: Vector2 = tip
+	var p2: Vector2 = tip - direction * arrow_size + perp * arrow_size * 0.5
+	var p3: Vector2 = tip - direction * arrow_size - perp * arrow_size * 0.5
+
+	var head := Polygon2D.new()
+	head.polygon = PackedVector2Array([p1, p2, p3])
+	head.color = Color(color.r, color.g, color.b, 0.7)
+	head.z_index = 14
+	line.add_child(head)
 
 func _cleanup_overlay() -> void:
 	for child in _world_overlay.get_children():

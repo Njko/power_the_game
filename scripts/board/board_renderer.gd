@@ -188,16 +188,26 @@ func _draw_ocean_background() -> void:
 	var board_rect := Rect2(
 		BOARD_ORIGIN + Vector2(-0.5, -0.5) * CELL_SIZE,
 		Vector2(10, 10) * CELL_SIZE)
-	# Fond
-	draw_rect(board_rect, COLOR_SEA_DEEP)
-	# Vagues subtiles (lignes horizontales semi-transparentes)
-	var wave_color := Color(0.2, 0.4, 0.7, 0.08)
-	for y_off in range(0, int(board_rect.size.y), 12):
-		var y_pos := board_rect.position.y + y_off
-		draw_line(
-			Vector2(board_rect.position.x, y_pos),
-			Vector2(board_rect.end.x, y_pos),
-			wave_color, 1.0)
+	# Dégradé vertical simulé (bleu profond → légèrement plus clair en bas)
+	var num_bands := 8
+	var band_h: float = board_rect.size.y / num_bands
+	for i in range(num_bands):
+		var t: float = float(i) / float(num_bands)
+		var band_color := COLOR_SEA_DEEP.lerp(Color(0.12, 0.28, 0.52), t * 0.4)
+		draw_rect(Rect2(board_rect.position.x, board_rect.position.y + i * band_h,
+			board_rect.size.x, band_h + 1), band_color)
+	# Vagues sinusoïdales
+	var wave_color := Color(0.25, 0.45, 0.75, 0.1)
+	for y_off in range(0, int(board_rect.size.y), 14):
+		var y_base: float = board_rect.position.y + y_off
+		var points := PackedVector2Array()
+		var amplitude: float = 2.0 + fmod(y_off * 0.7, 3.0)
+		for x_off in range(0, int(board_rect.size.x), 6):
+			var xp: float = board_rect.position.x + x_off
+			var yp: float = y_base + sin(xp * 0.04 + y_off * 0.3) * amplitude
+			points.append(Vector2(xp, yp))
+		if points.size() > 1:
+			draw_polyline(points, wave_color, 1.0)
 
 func _draw_adjacency_lines() -> void:
 	if board_data == null:
@@ -311,14 +321,41 @@ func _draw_land_sector(rect: Rect2, sector: Sector, sector_id: String) -> void:
 	if is_hill:
 		fill = fill.darkened(0.1)
 
+	# Ombre portée (la case terrestre est surélevée par rapport à la mer)
+	var shadow_offset := Vector2(3, 3) if not is_hill else Vector2(5, 5)
+	var shadow_rect := Rect2(rect.position + shadow_offset, rect.size)
+	draw_rect(shadow_rect, Color(0, 0, 0, 0.25 if not is_hill else 0.35))
+
 	# Fond avec bordure
 	draw_rect(rect, edge)
 	var inner := Rect2(rect.position + Vector2(2, 2), rect.size - Vector2(4, 4))
-	draw_rect(inner, fill)
+	# Dégradé vertical (plus clair en haut, plus sombre en bas)
+	var grad_bands := 4
+	var gh: float = inner.size.y / grad_bands
+	for gi in range(grad_bands):
+		var gt: float = float(gi) / float(grad_bands)
+		var gc: Color = fill.lightened(0.08 * (1.0 - gt)).darkened(0.05 * gt)
+		draw_rect(Rect2(inner.position.x, inner.position.y + gi * gh, inner.size.x, gh + 1), gc)
 
-	# Reflet subtil en haut
-	var shine := Rect2(inner.position, Vector2(inner.size.x, 3))
-	draw_rect(shine, Color(1, 1, 1, 0.08))
+	# Biseau intérieur — relief 3D
+	var bevel_size := 2.0 if not is_hill else 3.0
+	# Highlight haut + gauche
+	draw_rect(Rect2(inner.position, Vector2(inner.size.x, bevel_size)), Color(1, 1, 1, 0.15))
+	draw_rect(Rect2(inner.position, Vector2(bevel_size, inner.size.y)), Color(1, 1, 1, 0.1))
+	# Ombre bas + droite
+	draw_rect(Rect2(inner.position.x, inner.end.y - bevel_size, inner.size.x, bevel_size), Color(0, 0, 0, 0.15))
+	draw_rect(Rect2(inner.end.x - bevel_size, inner.position.y, bevel_size, inner.size.y), Color(0, 0, 0, 0.1))
+
+	# Texture herbe : petits traits diagonaux
+	var grass_color := Color(fill.r * 0.8, fill.g * 1.1, fill.b * 0.7, 0.15)
+	var step := 8
+	for gx in range(0, int(inner.size.x), step):
+		for gy in range(0, int(inner.size.y), step):
+			var ox: float = fmod((gx * 7 + gy * 13), 5.0) - 2.0
+			var oy: float = fmod((gx * 11 + gy * 3), 5.0) - 2.0
+			var p := Vector2(inner.position.x + gx + ox, inner.position.y + gy + oy)
+			if inner.has_point(p):
+				draw_line(p, p + Vector2(2, -3), grass_color, 1.0)
 
 	# Colline centrale: courbes de niveau + sommet
 	if is_hill:
@@ -347,14 +384,36 @@ func _draw_coastal_sector(rect: Rect2, sector: Sector, sector_id: String) -> voi
 	var fill: Color = colors[0]
 	var edge: Color = colors[1]
 
-	# Fond de base (comme land)
+	# Ombre portée
+	var shadow_rect := Rect2(rect.position + Vector2(3, 3), rect.size)
+	draw_rect(shadow_rect, Color(0, 0, 0, 0.2))
+
+	# Fond de base avec dégradé
 	draw_rect(rect, edge)
 	var inner := Rect2(rect.position + Vector2(2, 2), rect.size - Vector2(4, 4))
-	draw_rect(inner, fill)
+	var grad_bands := 4
+	var gh: float = inner.size.y / grad_bands
+	for gi in range(grad_bands):
+		var gt: float = float(gi) / float(grad_bands)
+		var gc: Color = fill.lightened(0.08 * (1.0 - gt)).darkened(0.05 * gt)
+		draw_rect(Rect2(inner.position.x, inner.position.y + gi * gh, inner.size.x, gh + 1), gc)
 
-	# Reflet subtil en haut
-	var shine := Rect2(inner.position, Vector2(inner.size.x, 3))
-	draw_rect(shine, Color(1, 1, 1, 0.08))
+	# Biseau intérieur
+	draw_rect(Rect2(inner.position, Vector2(inner.size.x, 2)), Color(1, 1, 1, 0.12))
+	draw_rect(Rect2(inner.position, Vector2(2, inner.size.y)), Color(1, 1, 1, 0.08))
+	draw_rect(Rect2(inner.position.x, inner.end.y - 2, inner.size.x, 2), Color(0, 0, 0, 0.12))
+	draw_rect(Rect2(inner.end.x - 2, inner.position.y, 2, inner.size.y), Color(0, 0, 0, 0.08))
+
+	# Texture herbe
+	var grass_color := Color(fill.r * 0.8, fill.g * 1.1, fill.b * 0.7, 0.15)
+	var step := 8
+	for gx in range(0, int(inner.size.x), step):
+		for gy in range(0, int(inner.size.y), step):
+			var ox: float = fmod((gx * 7 + gy * 13), 5.0) - 2.0
+			var oy: float = fmod((gx * 11 + gy * 3), 5.0) - 2.0
+			var p := Vector2(inner.position.x + gx + ox, inner.position.y + gy + oy)
+			if inner.has_point(p):
+				draw_line(p, p + Vector2(2, -3), grass_color, 1.0)
 
 	# Détecter les bords adjacents à la mer/île par intersection géométrique
 	var sand_color := Color(COLOR_SAND.r, COLOR_SAND.g, COLOR_SAND.b, 0.55)
@@ -435,19 +494,64 @@ func _draw_coastal_sector(rect: Rect2, sector: Sector, sector_id: String) -> voi
 	_draw_sector_label(rect, sector_id, COLOR_LABEL, 10)
 
 func _draw_sea_sector(rect: Rect2, sector_id: String) -> void:
-	draw_rect(rect, COLOR_SEA_LIGHT)
-	# Petites vagues adaptées à la taille du rect
-	var center := rect.get_center()
-	var half_w := rect.size.x * 0.15
-	var half_h := rect.size.y * 0.15
-	if rect.size.x >= rect.size.y:
-		# Horizontal ou carré: vagues horizontales
-		draw_line(center + Vector2(-half_w, -2), center + Vector2(half_w, -2), Color(0.3, 0.5, 0.8, 0.3), 1.0)
-		draw_line(center + Vector2(-half_w * 0.75, 2), center + Vector2(half_w * 0.75, 2), Color(0.3, 0.5, 0.8, 0.2), 1.0)
+	# Dégradé pour donner de la profondeur
+	var is_horizontal := rect.size.x >= rect.size.y
+	if is_horizontal:
+		var num_bands := 3
+		var bh: float = rect.size.y / num_bands
+		for i in range(num_bands):
+			var t: float = float(i) / float(num_bands)
+			var bc: Color = COLOR_SEA_LIGHT.lightened(0.05 * (1.0 - t)).darkened(0.08 * t)
+			draw_rect(Rect2(rect.position.x, rect.position.y + i * bh, rect.size.x, bh + 1), bc)
 	else:
-		# Vertical: vagues verticales
-		draw_line(center + Vector2(-2, -half_h), center + Vector2(-2, half_h), Color(0.3, 0.5, 0.8, 0.3), 1.0)
-		draw_line(center + Vector2(2, -half_h * 0.75), center + Vector2(2, half_h * 0.75), Color(0.3, 0.5, 0.8, 0.2), 1.0)
+		var num_bands := 3
+		var bw: float = rect.size.x / num_bands
+		for i in range(num_bands):
+			var t: float = float(i) / float(num_bands)
+			var bc: Color = COLOR_SEA_LIGHT.lightened(0.05 * (1.0 - t)).darkened(0.08 * t)
+			draw_rect(Rect2(rect.position.x + i * bw, rect.position.y, bw + 1, rect.size.y), bc)
+
+	# Vagues sinusoïdales
+	var wave_color := Color(0.35, 0.55, 0.85, 0.25)
+	var wave_color2 := Color(0.2, 0.4, 0.7, 0.15)
+	if is_horizontal:
+		for row in range(3):
+			var y_base: float = rect.position.y + rect.size.y * (0.25 + 0.25 * row)
+			var points := PackedVector2Array()
+			for xi in range(0, int(rect.size.x), 4):
+				var xp: float = rect.position.x + xi
+				var yp: float = y_base + sin(xp * 0.12 + row * 2.0) * 2.5
+				points.append(Vector2(xp, yp))
+			if points.size() > 1:
+				draw_polyline(points, wave_color if row != 1 else wave_color2, 1.0)
+	else:
+		for col in range(3):
+			var x_base: float = rect.position.x + rect.size.x * (0.25 + 0.25 * col)
+			var points := PackedVector2Array()
+			for yi in range(0, int(rect.size.y), 4):
+				var yp: float = rect.position.y + yi
+				var xp: float = x_base + sin(yp * 0.12 + col * 2.0) * 2.5
+				points.append(Vector2(xp, yp))
+			if points.size() > 1:
+				draw_polyline(points, wave_color if col != 1 else wave_color2, 1.0)
+
+	# Biseau inversé (creux) — sombre en haut, clair en bas
+	draw_rect(Rect2(rect.position, Vector2(rect.size.x, 2)), Color(0, 0, 0, 0.2))
+	draw_rect(Rect2(rect.position, Vector2(2, rect.size.y)), Color(0, 0, 0, 0.15))
+	draw_rect(Rect2(rect.position.x, rect.end.y - 2, rect.size.x, 2), Color(1, 1, 1, 0.08))
+	draw_rect(Rect2(rect.end.x - 2, rect.position.y, 2, rect.size.y), Color(1, 1, 1, 0.06))
+
+	# Écume (petits points blancs épars)
+	var foam_color := Color(1, 1, 1, 0.12)
+	var foam_step := 10
+	for fx in range(0, int(rect.size.x), foam_step):
+		for fy in range(0, int(rect.size.y), foam_step):
+			var ox: float = fmod((fx * 13 + fy * 7), 7.0) - 3.0
+			var oy: float = fmod((fx * 3 + fy * 11), 7.0) - 3.0
+			var fp := Vector2(rect.position.x + fx + ox, rect.position.y + fy + oy)
+			if rect.has_point(fp):
+				draw_circle(fp, 1.0, foam_color)
+
 	_draw_sector_label(rect, sector_id, Color(0.7, 0.8, 1.0, 0.6), 9)
 
 func _draw_island_sector(rect: Rect2, sector_id: String) -> void:
@@ -523,14 +627,38 @@ func _draw_hq_sector(rect: Rect2, sector: Sector) -> void:
 	var edge: Color = COLOR_HQ_GLOW
 	var wall_color: Color = colors[1].darkened(0.15)
 
-	# Lueur extérieure
+	# Lueur extérieure (double couche)
+	var glow2 := Rect2(rect.position - Vector2(5, 5), rect.size + Vector2(10, 10))
+	draw_rect(glow2, Color(edge.r, edge.g, edge.b, 0.1))
 	var glow := Rect2(rect.position - Vector2(3, 3), rect.size + Vector2(6, 6))
 	draw_rect(glow, Color(edge.r, edge.g, edge.b, 0.2))
 
 	# Fond avec murs épais
 	draw_rect(rect, wall_color)
 	var inner := Rect2(rect.position + Vector2(4, 4), rect.size - Vector2(8, 8))
-	draw_rect(inner, fill)
+	# Dégradé intérieur (clair en haut → sombre en bas)
+	var hq_bands := 5
+	var hq_bh: float = inner.size.y / hq_bands
+	for i in range(hq_bands):
+		var t: float = float(i) / float(hq_bands)
+		var bc: Color = fill.lightened(0.1 * (1.0 - t)).darkened(0.08 * t)
+		draw_rect(Rect2(inner.position.x, inner.position.y + i * hq_bh, inner.size.x, hq_bh + 1), bc)
+
+	# Motif pierre (petits rectangles pour simuler les briques)
+	var stone_color := Color(wall_color.r, wall_color.g, wall_color.b, 0.12)
+	var stone_w := 12.0
+	var stone_h := 6.0
+	var row_idx := 0
+	var sy: float = inner.position.y
+	while sy < inner.end.y - stone_h:
+		var sx_offset: float = stone_w * 0.5 if row_idx % 2 == 1 else 0.0
+		var sx: float = inner.position.x + sx_offset
+		while sx < inner.end.x - 2:
+			var sw: float = minf(stone_w, inner.end.x - sx - 1)
+			draw_rect(Rect2(sx, sy, sw, stone_h), stone_color, false, 0.5)
+			sx += stone_w + 1
+		sy += stone_h + 1
+		row_idx += 1
 
 	# Bordure dorée épaisse
 	draw_rect(rect, edge, false, 3.0)

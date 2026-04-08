@@ -43,7 +43,7 @@ var hovered_sector: String = ""
 var selected_sector: String = ""
 var highlighted_sectors: Array[String] = []
 var sector_positions: Dictionary = {}
-var debug_adjacency: bool = true  # Afficher les lignes d'adjacence (debug)
+var debug_adjacency: bool = false  # Afficher les lignes d'adjacence (debug)
 
 func _ready() -> void:
 	board_data = BoardData.new()

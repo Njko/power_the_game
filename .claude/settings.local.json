@@ -3,7 +3,10 @@
     "allow": [
       "WebSearch",
       "WebFetch(domain:boardgamegeek.com)",
-      "WebFetch(domain:archive.org)"
+      "WebFetch(domain:archive.org)",
+      "Bash(/c/Program Files \\(x86\\)/Steam/steamapps/common/Godot Engine/godot.windows.opt.tools.64.exe:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

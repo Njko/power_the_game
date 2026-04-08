@@ -244,21 +244,31 @@ func _build_grid_positions() -> void:
 
 # ===== CONVERSIONS DE COORDONNÉES =====
 
+const GRID_OFFSET := 0.5  # Décalage entre centre mesh (grid 4.5) et GRID_CENTER (4.0)
+
 func grid_to_3d(grid_pos: Vector2, with_height := true) -> Vector3:
 	## Convertit une position grille en position 3D monde.
 	var y: float = _get_height_at_grid(grid_pos) if with_height else 0.0
-	return Vector3((grid_pos.x - GRID_CENTER.x) * SCALE_3D, y, (grid_pos.y - GRID_CENTER.y) * SCALE_3D)
+	return Vector3(
+		(grid_pos.x - GRID_CENTER.x - GRID_OFFSET) * SCALE_3D, y,
+		(grid_pos.y - GRID_CENTER.y - GRID_OFFSET) * SCALE_3D)
 
 func world_to_grid(world_pos: Vector3) -> Vector2:
 	## Convertit une position 3D monde en position grille.
-	return Vector2(world_pos.x / SCALE_3D + GRID_CENTER.x, world_pos.z / SCALE_3D + GRID_CENTER.y)
+	return Vector2(
+		world_pos.x / SCALE_3D + GRID_CENTER.x + GRID_OFFSET,
+		world_pos.z / SCALE_3D + GRID_CENTER.y + GRID_OFFSET)
 
 func get_sector_screen_position(sector_id: String) -> Vector2:
 	## Retourne la position écran d'un secteur (projetée depuis le 3D).
 	if sector_id not in _grid_positions:
 		return Vector2.ZERO
 	var grid_pos: Vector2 = _grid_positions[sector_id]
-	var world_pos := grid_to_3d(grid_pos)
+	# Utiliser la hauteur connue du secteur directement (plus fiable que _get_height_at_grid)
+	var height: float = _get_sector_height(sector_id)
+	var world_pos := Vector3(
+		(grid_pos.x - GRID_CENTER.x - GRID_OFFSET) * SCALE_3D, height,
+		(grid_pos.y - GRID_CENTER.y - GRID_OFFSET) * SCALE_3D)
 	if camera == null or not camera.is_inside_tree():
 		return Vector2.ZERO
 	if not camera.is_current():

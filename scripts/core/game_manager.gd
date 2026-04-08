@@ -23,7 +23,7 @@ var _current_planning_color: GameEnums.PlayerColor = GameEnums.PlayerColor.NONE
 var _waiting_for_player_switch: bool = false
 
 var board_renderer: BoardRenderer
-var unit_renderer: UnitRenderer
+var unit_renderer  # UnitRenderer (2D) ou UnitRenderer3D — duck typing
 var anim_manager: AnimationManager
 const GameLoggerClass = preload("res://scripts/core/game_logger.gd")
 const GameArbiterClass = preload("res://scripts/core/game_arbiter.gd")
@@ -46,7 +46,7 @@ func start_game(num_players: int = 4, p_human_color: GameEnums.PlayerColor = Gam
 	var board_3d_node = get_node_or_null("../Board3D")
 	if board_3d_node:
 		board_renderer = board_3d_node.board_renderer
-	unit_renderer = get_node_or_null("../UnitOverlay/UnitRenderer") as UnitRenderer
+	unit_renderer = get_node_or_null("../Board3D/UnitRenderer3D")
 	anim_manager = get_node_or_null("../AnimOverlay/AnimationManager") as AnimationManager
 
 	if anim_manager and board_renderer:
@@ -78,7 +78,7 @@ func start_game_hotseat(num_players: int = 4) -> void:
 	var board_3d_node = get_node_or_null("../Board3D")
 	if board_3d_node:
 		board_renderer = board_3d_node.board_renderer
-	unit_renderer = get_node_or_null("../UnitOverlay/UnitRenderer") as UnitRenderer
+	unit_renderer = get_node_or_null("../Board3D/UnitRenderer3D")
 	anim_manager = get_node_or_null("../AnimOverlay/AnimationManager") as AnimationManager
 
 	if anim_manager and board_renderer:

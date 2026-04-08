@@ -74,7 +74,7 @@ class PhaseTimeline extends Control:
 # ===== FIN CLASSE INTERNE =====
 
 @onready var board_3d = $Board3D  # Board3D
-@onready var unit_renderer: UnitRenderer = $UnitOverlay/UnitRenderer
+var unit_renderer  # UnitRenderer3D — créé dynamiquement
 @onready var game_manager: Node = $GameManager
 @onready var order_panel: OrderPanel = $GameUI/OrderPanel
 @onready var anim_manager: AnimationManager = $AnimOverlay/AnimationManager
@@ -99,9 +99,14 @@ var _phase_timeline: PhaseTimeline
 var _unit_info_panel
 
 func _ready() -> void:
+	# Créer le renderer 3D des unités comme enfant de Board3D
+	var UnitRenderer3DClass = preload("res://scripts/units/unit_renderer_3d.gd")
+	unit_renderer = UnitRenderer3DClass.new()
+	unit_renderer.name = "UnitRenderer3D"
+	$Board3D.add_child(unit_renderer)
+
 	# Cacher les éléments de jeu pendant l'écran titre
 	$Board3D.visible = false
-	$UnitOverlay.visible = false
 	$AnimOverlay.visible = false
 	$GameUI.visible = false
 
@@ -133,7 +138,6 @@ func _ready() -> void:
 func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerColor, is_solo: bool) -> void:
 	# Montrer les éléments de jeu
 	$Board3D.visible = true
-	$UnitOverlay.visible = true
 	$AnimOverlay.visible = true
 	$GameUI.visible = true
 
@@ -193,6 +197,7 @@ func _on_game_start_requested(num_players: int, human_color: GameEnums.PlayerCol
 	order_panel.game_state = game_manager.game_state
 	order_panel.board_renderer = board_renderer
 	unit_renderer.board_3d = board_3d
+	unit_renderer.game_state = game_manager.game_state
 
 func _on_sector_clicked(sector_id: String) -> void:
 	var sector: Sector = game_manager.game_state.board.get_sector(sector_id)

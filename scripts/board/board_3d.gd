@@ -84,6 +84,19 @@ func _setup_3d_scene() -> void:
 	camera.fov = 50.0
 	add_child(camera)
 
+	# Éclairage directionnel pour les pions 3D
+	var light := DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-45, -30, 0)
+	light.light_energy = 0.8
+	light.shadow_enabled = true
+	add_child(light)
+	# Lumière d'ambiance (remplissage)
+	var fill_light := DirectionalLight3D.new()
+	fill_light.rotation_degrees = Vector3(-30, 150, 0)
+	fill_light.light_energy = 0.3
+	fill_light.shadow_enabled = false
+	add_child(fill_light)
+
 func _build_flat_mesh() -> void:
 	## Mesh plat par défaut avant que board_data soit disponible.
 	var plane := PlaneMesh.new()
@@ -244,20 +257,18 @@ func _build_grid_positions() -> void:
 
 # ===== CONVERSIONS DE COORDONNÉES =====
 
-const GRID_OFFSET := 0.5  # Décalage entre centre mesh (grid 4.5) et GRID_CENTER (4.0)
-
 func grid_to_3d(grid_pos: Vector2, with_height := true) -> Vector3:
 	## Convertit une position grille en position 3D monde.
 	var y: float = _get_height_at_grid(grid_pos) if with_height else 0.0
 	return Vector3(
-		(grid_pos.x - GRID_CENTER.x - GRID_OFFSET) * SCALE_3D, y,
-		(grid_pos.y - GRID_CENTER.y - GRID_OFFSET) * SCALE_3D)
+		(grid_pos.x - GRID_CENTER.x) * SCALE_3D, y,
+		(grid_pos.y - GRID_CENTER.y) * SCALE_3D)
 
 func world_to_grid(world_pos: Vector3) -> Vector2:
 	## Convertit une position 3D monde en position grille.
 	return Vector2(
-		world_pos.x / SCALE_3D + GRID_CENTER.x + GRID_OFFSET,
-		world_pos.z / SCALE_3D + GRID_CENTER.y + GRID_OFFSET)
+		world_pos.x / SCALE_3D + GRID_CENTER.x,
+		world_pos.z / SCALE_3D + GRID_CENTER.y)
 
 func get_sector_screen_position(sector_id: String) -> Vector2:
 	## Retourne la position écran d'un secteur (projetée depuis le 3D).
@@ -267,8 +278,8 @@ func get_sector_screen_position(sector_id: String) -> Vector2:
 	# Utiliser la hauteur connue du secteur directement (plus fiable que _get_height_at_grid)
 	var height: float = _get_sector_height(sector_id)
 	var world_pos := Vector3(
-		(grid_pos.x - GRID_CENTER.x - GRID_OFFSET) * SCALE_3D, height,
-		(grid_pos.y - GRID_CENTER.y - GRID_OFFSET) * SCALE_3D)
+		(grid_pos.x - GRID_CENTER.x) * SCALE_3D, height,
+		(grid_pos.y - GRID_CENTER.y) * SCALE_3D)
 	if camera == null or not camera.is_inside_tree():
 		return Vector2.ZERO
 	if not camera.is_current():

@@ -25,6 +25,8 @@ const COLOR_REACHABLE := Color(0.3, 0.6, 1.0, 0.25)
 const COLOR_LABEL_SHADOW := Color(0, 0, 0, 0.5)
 const COLOR_LABEL := Color(0.95, 0.95, 0.95)
 const COLOR_LABEL_DARK := Color(0.15, 0.15, 0.15)
+const COLOR_SAND := Color(0.82, 0.75, 0.55)
+const COLOR_WAVE_COAST := Color(0.3, 0.5, 0.8, 0.25)
 
 # Couleurs de territoire (base + bordure)
 const TERRITORY_COLORS := {
@@ -293,6 +295,8 @@ func _draw_sector(sector_id: String) -> void:
 			_draw_island_sector(inner, sector_id)
 		GameEnums.SectorType.HQ:
 			_draw_hq_sector(inner, sector)
+		GameEnums.SectorType.COASTAL:
+			_draw_coastal_sector(inner, sector, sector_id)
 		_:
 			_draw_land_sector(inner, sector, sector_id)
 
@@ -302,12 +306,12 @@ func _draw_land_sector(rect: Rect2, sector: Sector, sector_id: String) -> void:
 	var fill: Color = colors[0]
 	var edge: Color = colors[1]
 
-	# Secteur central (4) légèrement plus foncé
 	var num := sector_id.right(1).to_int() if sector_id.length() > 1 else -1
-	if num == 4:
+	var is_hill := (num == 4)
+	if is_hill:
 		fill = fill.darkened(0.1)
 
-	# Fond avec bordure arrondie simulée
+	# Fond avec bordure
 	draw_rect(rect, edge)
 	var inner := Rect2(rect.position + Vector2(2, 2), rect.size - Vector2(4, 4))
 	draw_rect(inner, fill)
@@ -316,7 +320,118 @@ func _draw_land_sector(rect: Rect2, sector: Sector, sector_id: String) -> void:
 	var shine := Rect2(inner.position, Vector2(inner.size.x, 3))
 	draw_rect(shine, Color(1, 1, 1, 0.08))
 
-	# Label
+	# Colline centrale: courbes de niveau + sommet
+	if is_hill:
+		var c := rect.get_center()
+		var hw := rect.size.x * 0.5
+		var contour_color := Color(edge.r, edge.g, edge.b, 0.3)
+		# 3 ellipses concentriques
+		for i in range(3):
+			var r: float = hw * (0.35 + 0.2 * i)
+			draw_arc(c, r, 0, TAU, 24, contour_color, 1.0)
+		# Symbole sommet (petit triangle)
+		var ts := 5.0  # taille du triangle
+		var peak_color := fill.lightened(0.25)
+		var triangle := PackedVector2Array([
+			c + Vector2(0, -ts),
+			c + Vector2(-ts * 0.8, ts * 0.6),
+			c + Vector2(ts * 0.8, ts * 0.6),
+		])
+		draw_colored_polygon(triangle, peak_color)
+
+	_draw_sector_label(rect, sector_id, COLOR_LABEL, 10)
+
+func _draw_coastal_sector(rect: Rect2, sector: Sector, sector_id: String) -> void:
+	var prefix := sector_id.left(1)
+	var colors: Array = TERRITORY_COLORS.get(prefix, [Color.GRAY, Color.DIM_GRAY])
+	var fill: Color = colors[0]
+	var edge: Color = colors[1]
+
+	# Fond de base (comme land)
+	draw_rect(rect, edge)
+	var inner := Rect2(rect.position + Vector2(2, 2), rect.size - Vector2(4, 4))
+	draw_rect(inner, fill)
+
+	# Reflet subtil en haut
+	var shine := Rect2(inner.position, Vector2(inner.size.x, 3))
+	draw_rect(shine, Color(1, 1, 1, 0.08))
+
+	# Détecter les bords adjacents à la mer/île par intersection géométrique
+	var sand_color := Color(COLOR_SAND.r, COLOR_SAND.g, COLOR_SAND.b, 0.55)
+	var band := 5.0
+	var probe := 6.0  # Distance de sonde au-delà du bord
+
+	# Sondes pour chaque bord : petits rects qui dépassent de chaque côté
+	var edge_probes := {
+		"top": Rect2(rect.position.x, rect.position.y - probe, rect.size.x, probe),
+		"bottom": Rect2(rect.position.x, rect.end.y, rect.size.x, probe),
+		"left": Rect2(rect.position.x - probe, rect.position.y, probe, rect.size.y),
+		"right": Rect2(rect.end.x, rect.position.y, probe, rect.size.y),
+	}
+
+	# Trouver quels bords touchent un secteur mer/île
+	var sea_edges: Array[String] = []
+	for edge_name in edge_probes:
+		var probe_rect: Rect2 = edge_probes[edge_name]
+		for other_id in sector_rects:
+			if other_id == sector_id:
+				continue
+			var other_sector: Sector = board_data.get_sector(other_id) if board_data else null
+			if other_sector == null:
+				continue
+			if other_sector.sector_type != GameEnums.SectorType.SEA and other_sector.sector_type != GameEnums.SectorType.ISLAND:
+				continue
+			if probe_rect.intersects(sector_rects[other_id]):
+				sea_edges.append(edge_name)
+				break
+
+	# Dessiner la frange sable sur chaque bord détecté
+	for edge_name in sea_edges:
+		match edge_name:
+			"top":
+				draw_rect(Rect2(inner.position.x, inner.position.y, inner.size.x, band), sand_color)
+			"bottom":
+				draw_rect(Rect2(inner.position.x, inner.end.y - band, inner.size.x, band), sand_color)
+			"left":
+				draw_rect(Rect2(inner.position.x, inner.position.y, band, inner.size.y), sand_color)
+			"right":
+				draw_rect(Rect2(inner.end.x - band, inner.position.y, band, inner.size.y), sand_color)
+
+	# Coins sable : si deux bords adjacents ont du sable, remplir le coin
+	if "top" in sea_edges and "left" in sea_edges:
+		draw_rect(Rect2(inner.position.x, inner.position.y, band, band), sand_color)
+	if "top" in sea_edges and "right" in sea_edges:
+		draw_rect(Rect2(inner.end.x - band, inner.position.y, band, band), sand_color)
+	if "bottom" in sea_edges and "left" in sea_edges:
+		draw_rect(Rect2(inner.position.x, inner.end.y - band, band, band), sand_color)
+	if "bottom" in sea_edges and "right" in sea_edges:
+		draw_rect(Rect2(inner.end.x - band, inner.end.y - band, band, band), sand_color)
+
+	# Petites vagues le long des bords mer
+	var wave_color := COLOR_WAVE_COAST
+	for edge_name in sea_edges:
+		match edge_name:
+			"right":
+				var wx: float = inner.end.x - 3.0
+				for j in range(3):
+					var wy: float = inner.position.y + inner.size.y * (0.25 + 0.25 * j)
+					draw_arc(Vector2(wx, wy), 4.0, -PI * 0.5, PI * 0.5, 6, wave_color, 1.0)
+			"left":
+				var wx: float = inner.position.x + 3.0
+				for j in range(3):
+					var wy: float = inner.position.y + inner.size.y * (0.25 + 0.25 * j)
+					draw_arc(Vector2(wx, wy), 4.0, PI * 0.5, PI * 1.5, 6, wave_color, 1.0)
+			"bottom":
+				var wy: float = inner.end.y - 3.0
+				for j in range(3):
+					var wx: float = inner.position.x + inner.size.x * (0.25 + 0.25 * j)
+					draw_arc(Vector2(wx, wy), 4.0, 0, PI, 6, wave_color, 1.0)
+			"top":
+				var wy: float = inner.position.y + 3.0
+				for j in range(3):
+					var wx: float = inner.position.x + inner.size.x * (0.25 + 0.25 * j)
+					draw_arc(Vector2(wx, wy), 4.0, PI, TAU, 6, wave_color, 1.0)
+
 	_draw_sector_label(rect, sector_id, COLOR_LABEL, 10)
 
 func _draw_sea_sector(rect: Rect2, sector_id: String) -> void:
@@ -340,19 +455,25 @@ func _draw_island_sector(rect: Rect2, sector_id: String) -> void:
 	var c := rect.get_center()
 	var hw := rect.size.x / 2 - CELL_PADDING
 	var hh := rect.size.y / 2 - CELL_PADDING
-	var cut := hw * 0.35  # Taille de la coupe des coins
+	var cut := hw * 0.35
 
 	# Points de l'octogone (sens horaire depuis haut-gauche)
 	var points := PackedVector2Array([
-		c + Vector2(-hw + cut, -hh),      # haut-gauche → droite
-		c + Vector2(hw - cut, -hh),        # haut-droite → gauche
-		c + Vector2(hw, -hh + cut),        # haut-droite → bas
-		c + Vector2(hw, hh - cut),         # bas-droite → haut
-		c + Vector2(hw - cut, hh),         # bas-droite → gauche
-		c + Vector2(-hw + cut, hh),        # bas-gauche → droite
-		c + Vector2(-hw, hh - cut),        # bas-gauche → haut
-		c + Vector2(-hw, -hh + cut),       # haut-gauche → bas
+		c + Vector2(-hw + cut, -hh),
+		c + Vector2(hw - cut, -hh),
+		c + Vector2(hw, -hh + cut),
+		c + Vector2(hw, hh - cut),
+		c + Vector2(hw - cut, hh),
+		c + Vector2(-hw + cut, hh),
+		c + Vector2(-hw, hh - cut),
+		c + Vector2(-hw, -hh + cut),
 	])
+
+	# Ombre portée (effet d'élévation)
+	var shadow_points := PackedVector2Array()
+	for p in points:
+		shadow_points.append(p + Vector2(3, 3))
+	draw_colored_polygon(shadow_points, Color(0, 0, 0, 0.3))
 
 	# Bordure de plage (octogone extérieur)
 	draw_colored_polygon(points, Color(0.75, 0.70, 0.50))
@@ -363,10 +484,20 @@ func _draw_island_sector(rect: Rect2, sector_id: String) -> void:
 		inner_points.append(c + (p - c) * 0.85)
 	draw_colored_polygon(inner_points, COLOR_ISLAND)
 
-	# Bordure
-	draw_polyline(points, COLOR_ISLAND_EDGE, 1.5, true)
-	# Fermer le polyline (dernier → premier point)
-	draw_line(points[-1], points[0], COLOR_ISLAND_EDGE, 1.5)
+	# Bordure épaisse
+	draw_polyline(points, COLOR_ISLAND_EDGE, 2.0, true)
+	draw_line(points[-1], points[0], COLOR_ISLAND_EDGE, 2.0)
+
+	# Hachures rocheuses (lignes diagonales)
+	var hatch_color := Color(COLOR_ISLAND_EDGE.r, COLOR_ISLAND_EDGE.g, COLOR_ISLAND_EDGE.b, 0.25)
+	for i in range(4):
+		var offset: float = -hw * 0.4 + hw * 0.2 * i
+		var p1 := c + Vector2(offset, -hh * 0.4)
+		var p2 := c + Vector2(offset + hw * 0.25, hh * 0.3)
+		draw_line(p1, p2, hatch_color, 1.0)
+
+	# Point culminant au centre
+	draw_circle(c, 3.0, Color(0.6, 0.85, 0.5, 0.5))
 
 	# Reflet subtil en haut
 	var shine_points := PackedVector2Array([
@@ -390,25 +521,52 @@ func _draw_hq_sector(rect: Rect2, sector: Sector) -> void:
 	var colors: Array = TERRITORY_COLORS.get(prefix, [Color.GRAY, Color.DIM_GRAY])
 	var fill: Color = colors[0].lightened(0.15)
 	var edge: Color = COLOR_HQ_GLOW
+	var wall_color: Color = colors[1].darkened(0.15)
 
 	# Lueur extérieure
-	var glow := Rect2(rect.position - Vector2(2, 2), rect.size + Vector2(4, 4))
-	draw_rect(glow, Color(edge.r, edge.g, edge.b, 0.25))
+	var glow := Rect2(rect.position - Vector2(3, 3), rect.size + Vector2(6, 6))
+	draw_rect(glow, Color(edge.r, edge.g, edge.b, 0.2))
 
-	# Fond
-	draw_rect(rect, colors[1])
-	var inner := Rect2(rect.position + Vector2(2, 2), rect.size - Vector2(4, 4))
+	# Fond avec murs épais
+	draw_rect(rect, wall_color)
+	var inner := Rect2(rect.position + Vector2(4, 4), rect.size - Vector2(8, 8))
 	draw_rect(inner, fill)
 
-	# Bordure dorée
-	draw_rect(rect, edge, false, 2.5)
+	# Bordure dorée épaisse
+	draw_rect(rect, edge, false, 3.0)
 
-	# Texte HQ
+	# Créneaux sur le bord supérieur
+	var cren_h := 5.0
+	var cren_w := 8.0
+	var gap := 4.0
+	var total_w: float = rect.size.x
+	var num_crens: int = int(total_w / (cren_w + gap))
+	var start_x: float = rect.position.x + (total_w - num_crens * (cren_w + gap) + gap) * 0.5
+	for i in range(num_crens):
+		var cx: float = start_x + i * (cren_w + gap)
+		draw_rect(Rect2(cx, rect.position.y - cren_h, cren_w, cren_h), wall_color)
+		draw_rect(Rect2(cx, rect.position.y - cren_h, cren_w, cren_h), edge, false, 1.0)
+
+	# Créneaux sur le bord inférieur
+	for i in range(num_crens):
+		var cx: float = start_x + i * (cren_w + gap)
+		draw_rect(Rect2(cx, rect.end.y, cren_w, cren_h), wall_color)
+		draw_rect(Rect2(cx, rect.end.y, cren_w, cren_h), edge, false, 1.0)
+
+	# Étoile dorée au-dessus du texte
+	var star_center := Vector2(rect.get_center().x, rect.get_center().y - 12)
+	var star_points := PackedVector2Array()
+	for i in range(8):
+		var angle: float = i * TAU / 8 - PI / 2
+		var r: float = 5.0 if i % 2 == 0 else 2.5
+		star_points.append(star_center + Vector2(cos(angle), sin(angle)) * r)
+	draw_colored_polygon(star_points, COLOR_HQ_GLOW)
+
+	# Texte QG
 	var font := ThemeDB.fallback_font
 	var text := "QG"
 	var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, 15)
-	var text_pos := rect.position + (rect.size - text_size) / 2 + Vector2(0, text_size.y * 0.7)
-	# Ombre
+	var text_pos := rect.position + (rect.size - text_size) / 2 + Vector2(0, text_size.y * 0.7 + 4)
 	draw_string(font, text_pos + Vector2(1, 1), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, COLOR_LABEL_SHADOW)
 	draw_string(font, text_pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, COLOR_HQ_GLOW)
 
